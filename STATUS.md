@@ -184,3 +184,8 @@ Reuses the 3D engine, measurements and tooling of `dev/racer` (Direct3D 6 on sto
   jet.ini was truncated), -mscript/-ini added to the switch list, loading text, test leftovers removed. VM: -test all
   rc=0, keys/reload/flow menu scripts rc=0, simh rc=0, jet.ini regenerated. **M3 wave 11 complete.** Fresh T40
   snapshot in snap/ (t40.bat = title at 1400x1050 High). Next: user play/T40 pass, T21 balance, T24 release.
+- 2026-11-14: **1.0 released locally** (user asked at 98 % of the weekly limit): release/Ashfall-1.0 (ASHFALL.EXE +
+  data + jet.ini + README.TXT), dist/out/ashfall-1.0-setup.exe (Setup98, 8.7 MB, CRCs ok) + ashfall-1.0.zip (9.3 MB).
+  VM: silent install rc=0, uninstall /PURGE rc=0; `-test all` from the installed folder rc=1 (not investigated; dev
+  tests likely need files not shipped). Local git repo created with the initial commit (no remote). Not done: exe
+  version resource, own installer icon stub, T21 balance/T23 T40 pass, far-terrain detail texture (user undecided).
