@@ -70,6 +70,7 @@ static char   s_devName[64];
 static D3DDEVICEDESC s_hal;
 static DDPIXELFORMAT s_zfmt;
 static int    s_haveZ, s_zBitsWant;
+static float  s_swBias;                       /* 1.1b: software depth bias per zBias level (Z-buffer only), 0 = off */
 static PFmt   s_tf[TF_COUNT];
 static int    s_oldPace;                             /* T16: -oldpace = T05 blank-counting present loop */
 static int    s_flipLate, s_flipFirst;               /* T16: flips not done at the first blank wait / done */
@@ -864,6 +865,7 @@ static void draw_tris(int fmt, const u8 *verts, int first, int count, const u16 
     float xmin = (float)s_vx, xmax = (float)(s_vx + s_vw), ymin = (float)s_vy, ymax = (float)(s_vy + s_vh);
     float m00, m01, m02, m03, m10, m11, m12, m13, m20, m21, m22, m23, m30, m31, m32, m33, kL, kR, kB, kT;
     int i, k, nv, ni, nclip = 0;
+    float zb = s_swBias * (float)s_mat.zBias;      /* software zBias: pull sz toward the eye by whole LSBs */
     if (count <= 0 || nIdx < 3) return;
     if (count > MAXV) count = MAXV;
     prof_begin(s_secXform);
@@ -902,7 +904,8 @@ static void draw_tris(int fmt, const u8 *verts, int first, int count, const u16 
             float rhw = 1.0f / cw;
             t->sx = cxo + cx * rhw * hw;
             t->sy = cyo - cy * rhw * hh;
-            t->sz = code ? 1.0f : cz * rhw;
+            t->sz = code ? 1.0f : cz * rhw - zb;
+            if (t->sz < 0.0f) t->sz = 0.0f;
             t->rhw = rhw;
         } else {
             t->sx = xmin; t->sy = ymin; t->sz = 0.0f; t->rhw = 1.0f;
@@ -958,7 +961,7 @@ static void draw_tris(int fmt, const u8 *verts, int first, int count, const u16 
                 rhw = q->w > 1e-6f ? 1.0f / q->w : 1e6f;
                 sx = cxo + q->x * rhw * hw;
                 sy = cyo - q->y * rhw * hh;
-                sz = q->z * rhw;
+                sz = q->z * rhw - zb;
                 t->sx = sx < xmin ? xmin : (sx > xmax ? xmax : sx);
                 t->sy = sy < ymin ? ymin : (sy > ymax ? ymax : sy);
                 t->sz = sz < 0.0f ? 0.0f : (sz > 1.0f ? 1.0f : sz);
@@ -1364,6 +1367,19 @@ static int init_inner(void *hwnd, const RInit *ri, RCaps *caps)
        the lifted decals (runway 0.2 m, shadow 0.5 m) without it. -zbias forces it on, -nozbias off. */
     if (s_zmode != D3DZB_USEW && !arg_has("-zbias")) s_zbiasCap = 0;
     if (arg_has("-nozbias")) s_zbiasCap = 0;
+    /* 1.1b: without the hardware bias the coplanar sea layers (shallow fans zBias 1 over the ring, foam and the fog band
+       zBias 2) z-fought along the coast on the T40. Software bias instead: sz (= z/w) minus zBias x N LSB of the Z
+       format (default 16 LSB of 24 bits = ~95 m at 10 km from a 1 m near plane, under a pixel of coast at grazing
+       angles). -swzbias N sets N, 0 = off. W-buffer (Voodoo) ignores sz, so nothing changes there. */
+    s_swBias = 0.0f;
+    if (s_zmode != D3DZB_USEW && !s_zbiasCap) {
+        int zb = (int)s_zfmt.dwZBufferBitDepth;
+        float lsb = arg_float("-swzbias", 0, 16.0f);
+        if (zb > 24) zb = 24;
+        if (zb < 16) zb = 16;
+        if (lsb < 0.0f) lsb = 0.0f;
+        s_swBias = lsb / (float)(1L << zb);
+    }
     s_gbL = s_hal.dvGuardBandLeft; s_gbT = s_hal.dvGuardBandTop;
     s_gbR = s_hal.dvGuardBandRight; s_gbB = s_hal.dvGuardBandBottom;
     if (arg_has("-noguardband")) s_gbL = s_gbT = s_gbR = s_gbB = 0.0f;
@@ -1402,9 +1418,9 @@ static int init_inner(void *hwnd, const RInit *ri, RCaps *caps)
         if (cap < s_texBudgetKB) s_texBudgetKB = cap;
     }
     log_caps();
-    log_printf(LOG_INFO, "caps: summary hal=%d %dx%dx%d fs=%d zbits=%d zmode=%s wfog=%d fogtable=%d zbias=%d stages=%d "
+    log_printf(LOG_INFO, "caps: summary hal=%d %dx%dx%d fs=%d zbits=%d zmode=%s swzbias=%g wfog=%d fogtable=%d zbias=%d stages=%d "
                "mod2x=%d add=%d twopass=%d managed=%d maxtex=%dx%d", s_cp.hal, s_W, s_H, s_bpp, s_fs, s_cp.zBits,
-               s_zmode == D3DZB_USEW ? "w" : "z", s_wfog, s_cp.fogTable, s_zbiasCap, s_cp.texStages, s_mt2x, s_mtAdd,
+               s_zmode == D3DZB_USEW ? "w" : "z", (double)(s_swBias * 16777216.0f), s_wfog, s_cp.fogTable, s_zbiasCap, s_cp.texStages, s_mt2x, s_mtAdd,
                s_twoPassOk, s_managed, s_cp.maxTexW, s_cp.maxTexH);
     log_printf(LOG_INFO, "tex: budget_kb=%d (ini %d, texture vidmem free_kb=%u total_kb=%u)", s_texBudgetKB, ri->texBudgetKB,
                fr, tot);

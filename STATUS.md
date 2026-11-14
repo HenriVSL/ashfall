@@ -221,3 +221,10 @@ Reuses the 3D engine, measurements and tooling of `dev/racer` (Direct3D 6 on sto
   https://github.com/HenriVSL/ashfall (user choice) + GitHub release v1.1 with ashfall-1.1-setup.exe and
   ashfall-1.1.zip. VM: -test all, -hudtest zone/layout/contacts (800/1024), menu flow all rc=0; simh rc=0.
   Next: user decision on docs/PLAN_1.2.md (Island Control: ingress, ground radar, comms terminal).
+- 2026-11-15: user (T40): flashing in the water along the coast. Cause: 1.1 turned the hardware zBias off on Z-buffer
+  cards, so the coplanar sea layers (shallow fans zBias 1 over the opaque ring, foam/fog band 2) z-fought; from
+  26 km / 1500 m whole bands of sea showed through the island again. Fix (r_d3d6.cpp): software zBias in the CPU
+  transform, sz -= zBias x 16 LSB of the Z format (Z-buffer only, W-buffer untouched; `-swzbias N`, 0 = off; logged
+  in "caps: summary"). T40 shots 1.1 vs fix (15 km/400 m, 26 km/1500 m): shallows + foam correct, bands gone. Test exe
+  ASHSEA.EXE in the T40's 1.1 folder; user: "looks good". VM: -test all rc=0, Voodoo view unchanged
+  (zmode=w swzbias=0). **1.1.1 released**: tag v1.1.1, ashfall-1.1.1-setup.exe + zip on GitHub.
