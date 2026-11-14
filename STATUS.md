@@ -217,3 +217,7 @@ Reuses the 3D engine, measurements and tooling of `dev/racer` (Direct3D 6 on sto
   vs straight targets beyond 6 km; Rne bit-identical), refresh 1.33 -> 1.14 s, gate 1.4 s. T40 audio: engine loops
   left-only on the SoundMAX driver -> e_audio re-applies the pan after SetFrequency (-norepan to compare; user to
   confirm by ear). v1.0 tagged; repo README.md; public GitHub repo HenriVSL/ashfall (user).
+- 2026-11-14: **1.1 released**: commit "Ashfall 1.1" tagged v1.1 (v1.0 tagged too), pushed to the new public repo
+  https://github.com/HenriVSL/ashfall (user choice) + GitHub release v1.1 with ashfall-1.1-setup.exe and
+  ashfall-1.1.zip. VM: -test all, -hudtest zone/layout/contacts (800/1024), menu flow all rc=0; simh rc=0.
+  Next: user decision on docs/PLAN_1.2.md (Island Control: ingress, ground radar, comms terminal).
