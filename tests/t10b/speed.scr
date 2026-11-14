@@ -1,0 +1,5 @@
+# T10b speed cue shots: air start, afterburner run (transonic, supersonic), chase view.
+# jet.exe -script tests\t10b\speed.scr -shot 12 a.bmp -shot 26 b.bmp -exitafter 40
+0.5 air
+1.0 keydown A
+39.0 keyup A

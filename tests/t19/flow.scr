@@ -1,0 +1,73 @@
+# T19 menu flow: title -> OPTIONS (3 tabs) -> RECORDS -> FLY -> free flight -> pause -> options -> quit to menu -> QUIT
+# jet.exe -mscript tests\t19\flow.scr [-window] [-res 1024 768]   (log jet_test.log; exit code = failures)
+waitfor screen title 60
+wait 4
+expect screen title
+expect item FLY
+expect fps 15
+shot shots\t19_title_%W.bmp
+key down
+expect item OPTIONS
+key ok
+expect screen options
+expect tab controls
+key down
+expect item PITCH_UP
+shot shots\t19_options_controls_%W.bmp
+key up
+key right
+expect tab video
+key down
+expect item PRESET
+shot shots\t19_options_video_%W.bmp
+key up
+key right
+expect tab sound
+key down
+expect item MASTER
+shot shots\t19_options_sound_%W.bmp
+key back
+expect screen title
+key down
+expect item RECORDS
+key ok
+expect screen records
+shot shots\t19_records_%W.bmp
+key back
+expect screen title
+key up 2
+expect item FLY
+key ok
+expect screen fly
+expect item FREE_FLIGHT
+key down 3
+expect item DIFFICULTY
+key right
+key left
+key up 2
+expect item TRAINING
+shot shots\t19_fly_%W.bmp
+key up
+expect item FREE_FLIGHT
+key ok
+waitfor screen flight 40
+wait 3
+key pause
+expect screen pause
+expect item RESUME
+shot shots\t19_pause_free_%W.bmp
+key down 2
+expect item OPTIONS
+key ok
+expect screen options
+shot shots\t19_pause_options_%W.bmp
+key back
+expect screen pause
+key down
+expect item QUIT_TO_MENU
+key ok
+waitfor screen title 30
+wait 1
+key back
+expect item QUIT
+key ok

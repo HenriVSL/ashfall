@@ -1,0 +1,4 @@
+# T22 crash-site explosion + smoke column: air start toward the island, dive into the lowlands
+0.1 param world.wreckSec=16
+0.5 air
+39.0 keydown DOWN

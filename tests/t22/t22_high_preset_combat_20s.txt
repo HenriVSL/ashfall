@@ -1,0 +1,30 @@
+bench: jet route=combat preset=high res=800x600 view=chase secs=20 frames=708 build="Nov 12 2026 19:29:31"
+bench: fps_avg=35.37 low1_fps=24.01 p99_ms=41.65 p50_ms=25.05
+bench: pace presents=708 misses=708 missed_pct=100.00 divisor=2 refresh=119.96 vblank=1 worst_blanks=237 hist=0/0/675/24/5/3/0/1
+bench: scene terrain_tris=1429/1534 sea_tris=582/645 base_tris=0/0 ac_tris=756/1058 cloud_quads=39/41 draws=36/42 tex_changes=30/34 tris=3400/3729 (avg/max)
+bench: route alt_min=3000 alt_max=3000 far=56000 fog=11200..50400 lodScale=1.50 clouds=48
+bench: far_eff avg=62000 max=62000 (T10b: altitude-aware far plane; far/fog above = sea level)
+bench: combat missiles_avg=5.2 missiles_max=9 fx_quads_avg=59 fx_quads_max=138 explosions_max=5 contacts_avg=1.8
+bench: gate15 pass=0 gate30 pass=0 (fps_avg >= 14.9 / 29.8 and missed <= 2 %)
+bench: frames=707 secs=19.99 fps_avg=35.37 fps_min1s=10.53
+bench: frame_ms avg=28.27 p50=25.25 p95=25.25 p99=41.75 worst=1975.70
+bench: hist_periods period_us=8336 1=0 2=0 3=674 4=24 5=5 6=3 7=0 8+=1
+bench: hist_ms 20-24=6 25-29=668 30-34=24 40-44=5 50-54=3 245-249=1
+bench: section name=sim avg_ms=1.152 worst_ms=3.542
+bench: section name=draw avg_ms=22.903 worst_ms=1970.812
+bench: section name=present avg_ms=4.154 worst_ms=11.191
+bench: section name=hud avg_ms=1.299 worst_ms=4.041
+bench: section name=dlz avg_ms=1.431 worst_ms=24.630
+bench: section name=r_xform avg_ms=5.510 worst_ms=8.926
+bench: section name=r_submit avg_ms=3.806 worst_ms=8.124
+bench: section name=r_clear avg_ms=0.014 worst_ms=0.092
+bench: count name=r_clipped per_frame=115.8 max=201
+bench: section name=terrain avg_ms=5.409 worst_ms=19.788
+bench: section name=sea avg_ms=3.649 worst_ms=5.576
+bench: section name=base avg_ms=0.033 worst_ms=0.155
+bench: section name=aircraft avg_ms=3.224 worst_ms=5.490
+bench: section name=sky avg_ms=1.534 worst_ms=5.128
+bench: section name=clouds avg_ms=0.456 worst_ms=0.992
+bench: section name=scatter avg_ms=0.017 worst_ms=0.117
+bench: section name=fx avg_ms=2.544 worst_ms=6.444
+bench: section name=fx_wreck avg_ms=0.221 worst_ms=0.778

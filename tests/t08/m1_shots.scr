@@ -1,0 +1,20 @@
+# T08 M1 screenshot flight (DESIGN 16.2 script): takeoff, climb-out, cockpit HUD, chase + afterburner, crash, respawn.
+# jet.exe -script tests\t08\m1_shots.scr -shot 6 shots\t08_roll.bmp ... -exitafter 80
+0.9 expect phase == READY
+1.0 keydown A
+1.2 keyup A
+5.0 expect phase == ROLL
+14.0 expect onground == 0
+33.0 keydown C
+33.1 keyup C
+34.0 expect phase == DONE
+36.0 keydown RIGHT
+36.3 keyup RIGHT
+39.0 keydown C
+39.1 keyup C
+40.0 keydown A
+48.0 keyup A
+48.5 keydown UP
+50.0 keyup UP
+52.0 keydown DOWN
+79.0 keyup DOWN

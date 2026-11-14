@@ -1,0 +1,25 @@
+bench: jet route=volcano preset=low res=800x600 view=chase secs=60 frames=1798 build="Nov 12 2026 10:33:30"
+bench: fps_avg=29.96 low1_fps=29.90 p99_ms=33.45 p50_ms=33.35
+bench: pace presents=1798 misses=6 missed_pct=0.33 divisor=4 refresh=119.96 vblank=1 worst_blanks=5 hist=0/0/0/1792/6/0/0/0
+bench: scene terrain_tris=2517/4642 sea_tris=255/360 base_tris=0/0 ac_tris=990/990 cloud_quads=4/8 draws=24/25 tex_changes=17/18 tris=3405/4351 (avg/max)
+bench: route alt_min=3600 alt_max=3600 far=38000 fog=7600..34200 lodScale=0.85 clouds=16
+bench: far_eff avg=47205 max=47205 (T10b: altitude-aware far plane; far/fog above = sea level)
+bench: gate15 pass=1 gate30 pass=1 (fps_avg >= 14.9 / 29.8 and missed <= 2 %)
+bench: frames=1797 secs=59.97 fps_avg=29.96 fps_min1s=29.74
+bench: frame_ms avg=33.37 p50=33.50 p95=33.50 p99=33.50 worst=41.68
+bench: hist_periods period_us=8336 1=0 2=0 3=0 4=1791 5=6 6=0 7=0 8+=0
+bench: hist_ms 30-34=1791 40-44=6
+bench: section name=sim avg_ms=0.419 worst_ms=1.109
+bench: section name=draw avg_ms=13.822 worst_ms=23.729
+bench: section name=present avg_ms=19.073 worst_ms=29.100
+bench: section name=hud avg_ms=0.566 worst_ms=0.807
+bench: section name=r_xform avg_ms=6.042 worst_ms=10.572
+bench: section name=r_submit avg_ms=3.014 worst_ms=12.742
+bench: section name=r_clear avg_ms=0.014 worst_ms=0.200
+bench: count name=r_clipped per_frame=283.6 max=366
+bench: section name=terrain avg_ms=5.991 worst_ms=15.678
+bench: section name=sea avg_ms=1.853 worst_ms=2.274
+bench: section name=base avg_ms=0.071 worst_ms=0.323
+bench: section name=aircraft avg_ms=3.389 worst_ms=7.976
+bench: section name=sky avg_ms=1.359 worst_ms=1.629
+bench: section name=clouds avg_ms=0.087 worst_ms=0.318

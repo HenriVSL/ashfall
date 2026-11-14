@@ -1,0 +1,2 @@
+# T22 contrail demo: contrails from 2 km so the combat route (3000 m) shows them on every jet
+0.1 param fx.contrailAltM=2000

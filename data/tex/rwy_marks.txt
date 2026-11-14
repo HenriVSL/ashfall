@@ -1,0 +1,26 @@
+# rwy_marks.bmp (A3 gen_ground.py): keyed atlas, exact magenta = transparent (ALPHATEST, cull none ok).
+# Each line: name x y w h world_w world_h  (pixels in the 256x128 atlas; metres of the quad showing the
+# whole rect, 0 = stretch to any size). Use UVs inset by half a texel (assetkit Atlas.uv convention).
+# Orientation: image UP = landing direction (toward the far end), image LEFT = pilot's left on approach.
+# Quads 0.05-0.1 m above the runway ribbon (+ zBias). Suggested placement from EACH runway end (ICAO-like,
+# 45 m runway, 2800 m long): piano keys are in rwy_thr.bmp (6..34.8 m, opaque, so they don't vanish in
+# the mips like keyed stripes); digits 46..55.6 m, rect centres 2.1 m either side of the centre
+# line (two digits, e.g. heading 233 deg -> '2' '3', reciprocal '0' '5'); aiming point = two 'bar' quads
+# 9 m wide x 45 m long at 400 m, inner edges 9 m from the centre line; touchdown zone = 'bar' quads
+# 1.8 x 22.5 m, inner edge 9 m from the centre line, 1.5 m apart: 3 per side at 150 m and 300 m, 2 at
+# 450 m and 600 m, 1 at 750 m and 900 m (bar starts at those distances). Ribbon textures from each end:
+# rwy_thr 0..50 m (v = 0 at the runway end), rwy_end 50..100 m, runway after that (all v = s / 50; dash
+# gaps sit on the v wrap, so every switch at whole v is seamless).
+# hold: on each taxiway link, 75 m from the runway centre line, dashed side toward the runway.
+bar     2   2  16  64   0.00   0.00   # solid paint: TDZ bars 1.8 x 22.5 m, aiming point 9 x 45 m (stretch)
+d0     22   2  18  48   3.60   9.60   # designation digit (glyph 3 x 9 m + 0.3 m margin)
+d1     44   2  18  48   3.60   9.60   # designation digit (glyph 3 x 9 m + 0.3 m margin)
+d2     66   2  18  48   3.60   9.60   # designation digit (glyph 3 x 9 m + 0.3 m margin)
+d3     88   2  18  48   3.60   9.60   # designation digit (glyph 3 x 9 m + 0.3 m margin)
+d4    110   2  18  48   3.60   9.60   # designation digit (glyph 3 x 9 m + 0.3 m margin)
+d5    132   2  18  48   3.60   9.60   # designation digit (glyph 3 x 9 m + 0.3 m margin)
+d6    154   2  18  48   3.60   9.60   # designation digit (glyph 3 x 9 m + 0.3 m margin)
+d7    176   2  18  48   3.60   9.60   # designation digit (glyph 3 x 9 m + 0.3 m margin)
+d8    198   2  18  48   3.60   9.60   # designation digit (glyph 3 x 9 m + 0.3 m margin)
+d9    220   2  18  48   3.60   9.60   # designation digit (glyph 3 x 9 m + 0.3 m margin)
+hold    2  70 128  16  23.00   3.00   # yellow holding position across the taxiway, dashed side = image top = runway

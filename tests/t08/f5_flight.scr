@@ -1,0 +1,22 @@
+# T08 acceptance 4: a recorded flight with a live F5 (sent from the Mac with vncdo at ~45 s) and a script param change.
+# jet.exe -window -script tests\t08\f5_flight.scr -record t08_f5.rpl -telemetry t08_f5.csv -exitafter 75 -log
+0.9 expect phase == READY
+1.0 keydown A
+1.2 keyup A
+34.0 expect phase == DONE
+36.0 keydown UP
+38.0 keyup UP
+40.0 keydown LEFT
+40.4 keyup LEFT
+42.0 keydown RIGHT
+42.4 keyup RIGHT
+50.0 keydown UP
+52.0 keyup UP
+55.0 param pilot.mode=novice
+56.0 expect mode == NOVICE
+57.0 keydown LEFT
+60.0 keyup LEFT
+62.0 keydown UP
+63.0 keyup UP
+66.0 param pilot.mode=expert
+70.0 expect alive == 1

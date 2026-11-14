@@ -1,0 +1,3 @@
+# T10b: all speed cues at their maximum (streak count full from 0 kt) for the bench cost
+0.1 param fx.streakFromKt=0
+0.1 param fx.streakFullKt=1

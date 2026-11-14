@@ -1,0 +1,6 @@
+# T22 vapour shots: air start, roll right, hard pull
+0.5 air
+1.0 keydown RIGHT
+1.45 keyup RIGHT
+1.5 keydown UP
+6.0 keyup UP

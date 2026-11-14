@@ -1,0 +1,177 @@
+# island.txt - Jet island source, compiled by tools/islandc/islandc.py (T03, T03b) into data/island/jet.isl,
+# data/island/base.trk, data/tex/map_island.bmp (+ _a), data/island/report.txt and tools/islandc/out/*.png.
+#
+#   python3 tools/islandc/islandc.py island/island.txt [--check] [--no-previews]
+#   python3 tools/build_assets.py --only island [--check]
+#
+# FORMAT (owned by T03): one "key value..." per line, '#' starts a comment, blank lines are ignored. Numbers are
+# metres / degrees unless stated. Keys marked (*) may repeat. Unknown keys are an error. Every key has a default
+# in tools/islandc/islandc.py (SPEC); a missing key uses it. VALUES: T03b "triple the world" island (user
+# 2026-11-13: ~3x radius), A6 owns the look.
+# Coordinates: +X east, +Z north, sea level y = 0, the grid is centred on the origin (DESIGN 3, 8.6).
+# Compass azimuths: 0 = north (+Z), 90 = east (+X), clockwise.
+
+grid            513 80          # samples per side, cell (m): 41 km square; 513 is the e_terrain maximum (superMax)
+feature_scale   2.6             # internal noise wavelengths / fade distances of height.py x this
+noise_scale     2.2             # class border noise wavelengths x this (80 m quads)
+minimap_size    256             # minimap image (power of two, <= 256)
+edge_fade       1500            # sea forced to the floor within this distance of the grid border
+
+seed            7101
+
+# ---- coast: an ellipse with a wobbly outline ------------------------------------------------------------------
+island_center   0 0             # x z of the ellipse centre
+island_radii    16600 13600     # semi-axes: along island_rot, across (T03: 5750 4850)
+island_rot      35              # azimuth of the long axis (NE-SW: uses the grid diagonal)
+coast_wobble    0.15 0.024      # coast radius noise: low frequency (bays, capes) and fine (+-) fraction of radius
+coast_detail    7 260           # angular noise lattice cells around the coast: low frequency, fine
+# (*) bays (depth > 0) and headlands (depth < 0): azimuth from island_center, half width (deg), depth (m)
+bay             115 24 3800     # east bay
+bay             158 11 -2300    # south-east headland
+bay             322 22 3000     # north-west bay
+bay             18 12 -2400     # north headland
+bay             198 14 1800     # southern bay
+bay             262 9 -1500     # west cape (airbase)
+plain           30 1900         # coastal plain: height reached, over this many metres inland of the coast
+hills           190 3800 1500   # rolling hills on the land: amplitude, wavelength, fade-in distance from the coast
+cliffs          65 50 130 220   # weather-side cliffs: azimuth, half spread (deg), height, width (coast -> top)
+beach           340 0.45        # flat beaches: width (m), share of the coast (patchy; none on the cliff side)
+shelf           2100 60         # sea shelf: mean width (coast -> floor), floor depth (positive metres)
+coast_depth     4               # coast rule: every grid vertex below sea level is at least this deep
+beach_min       1.0             # every land vertex is at least this high (no near-zero coast vertices)
+# (*) offshore islets: x z radius height (radius = to the -floor contour)
+islet           17600 -6600 1500 70
+islet          -7400 17800 1100 45
+
+# ---- volcano ------------------------------------------------------------------------------------------------
+cone_center     900 2000        # x z of the summit crater
+cone_radius     10800           # cone base radius (the lowland ring outside it: hills, satellite cones)
+cone_exp        1.6             # cone profile h0 * (1 - r/R)^exp
+summit          3000            # mean crater rim height (sets h0)
+crater          1250 400 0.40   # rim radius, bowl depth, flat floor radius (fraction of the rim radius)
+rim_noise       95              # rim crest height variation (+-)
+ridges          44 110 2600     # radial ridges/gullies: count around the cone, amplitude, radial wavelength
+erosion         95 2300         # fBm roughness on the cone: amplitude, wavelength
+lava_levee      5.0             # lava flows stand this much above the slope
+# (*) lava channels: azimuth from the crater, length from the rim, width at the rim, meander (deg)
+lava            105 7200 180 9
+lava            150 4800 160 12
+lava            30  3600 140 10
+lava            205 4000 150 11
+lava            300 3000 130 8
+lava            255 5400 170 10
+# (*) satellite cones: x z height radius craterRadius
+satellite       9600 10800 820 3000 450
+satellite       10400 -6400 640 2600 330
+satellite      -7600 10000 520 2200 0
+satellite      -6400 -1000 420 2000 280
+satellite       4200 -9600 380 1800 0
+satellite      -1800 9000 560 2300 0
+
+# ---- airbase (DESIGN 8.1) -----------------------------------------------------------------------------------
+runway_center  -13850 -2200     # x z of the runway centre (on the west cape)
+runway_heading  270             # takeoff direction (points out to sea)
+runway_size     2800 45         # length width
+plateau         12 800          # flat base height, smoothstep blend distance (wide: flat coastal base area)
+plateau_rect   -1650 1560 -240 560     # plateau in runway frame: along a0 a1, right b0 b1 (b+ = right of heading)
+taxiway         200 23 60       # parallel taxiway: offset right of the centre line, width, link inset from the ends
+apron           0 300 150       # apron: centre along, length along, depth (starts at the taxiway's far edge)
+# (*) buildings: mesh along right yaw(deg, 0 = front toward the runway)   (A7 meshes: hangar tower tank radome)
+building        hangar -105 400 0
+building        hangar  -35 400 0
+building        hangar   35 400 0
+building        hangar  105 400 0
+building        tower   200 330 0
+building        tank   -230 420 0
+building        tank   -255 450 0
+building        tank   -205 450 0
+building        radome  330 470 0
+# (*) A11 props (gen_props.py meshes; INST without collision box, drawn within 2.5 km): mesh along right yaw
+prop            lightmast -160 222 0
+prop            lightmast  160 222 0
+prop            lightmast  -70 368 0
+prop            lightmast   70 368 0
+prop            truck      -60 300 90
+prop            truck     -190 392 0
+prop            tug         25 262 35
+prop            jeep       232 312 0
+prop            jeep      -120 248 70
+prop            windsock -1000 -110 0
+# (*) A11 fences (runway frame polylines a b a b ..., 2.4 m chain link): base perimeter, tank farm, radome
+fence          -1600 545 1500 545
+fence           -290 375 -170 375 -170 495 -290 495 -290 375
+fence            295 435 365 435 365 505 295 505 295 435
+air_spawns      26000 2000      # 4 air spawns N E S W of the island centre: distance, altitude (~9 km off the coast)
+climbout        5000 600 1500 150   # check: length past the runway end, half width at the end, at 5 km, max height
+
+# ---- classes (DESIGN 8.1) -----------------------------------------------------------------------------------
+beach_max       4               # sand below this height (+ noise) near the coast
+grass_max       1450            # grass up to here, ash above ash_min (noisy band between)
+ash_min         1900
+grass_slope     22              # rock above rock_slope; between: noisy mix (80 m quads smooth the slopes)
+rock_slope      28
+
+# (*) class tints, A3 convention (tint x texture mean / 255 = average colour on flat sunlit ground; A3 HANDOFF).
+# Variants blend into their class by islandc's macro noise.
+tint sand          253 235 189
+tint grass         116 169  75
+tint grass_forest   72 118  56
+tint grass_dry     164 172  99
+tint grass_coast   150 176  92
+tint plateau       136 178  86
+tint rock          134 131 124
+tint rock_crater   128 108  98
+tint ash           164 155 147
+tint ash_red       182 140 120
+tint lava          230 222 214
+tint shelf         102 198 189
+tint deep           34  85 129
+# A11 tints (A3 convention; t_forest / t_scrub quads divide by their own texture mean)
+tint grass_wet      92 158  66      # windward meadows: lush
+tint forest_conifer 46  84  60      # cedar (cryptomeria) plantations: dark blue-green
+tint forest_light   98 146  62      # laurel / broadleaf canopy variation (t_forest)
+tint scrub         150 146  88      # dry leeward heath (t_scrub)
+tint scrub_heath   126 110  82      # upper heath belt under the ash: brown
+tint basalt         66  62  62      # cooled lava flows (t_rock / t_scrub)
+tint sand_black     88  84  84      # black volcanic sand beaches
+tint ash_sulphur   206 190 112      # sulphur-stained ash on the inner crater rim
+tint rock_lowland  146 142 130      # lowland outcrops: weathered light basalt
+tint field_pasture 112 182  70      # farmland patchwork (t_grass)
+tint field_hay     190 186  86
+tint field_crop     64 128  48
+tint field_stubble 200 178 108      # (t_scrub)
+tint field_plough  150 118  88
+# ---- A11 island detail (classes.py docstring): wet windward / dry leeward, forest, farmland, heath, lava, beaches
+moisture        65 0.6          # wind from ENE (the cliff side): windward lush + forest, leeward (W, base) dry
+forest          0.47 25 1250    # forest mask threshold (lower = more forest), lowest height, treeline (m)
+fields          300 7 0.55      # farmland patchwork below 300 m on slopes < 7 deg, ~55 % of that land in districts
+scrub_belt      1150 1400       # dry heath (t_scrub) from 1150 m up to the ash
+lava_cool       1700            # glowing lava only above 1700 m and in the crater; cooled basalt below
+outcrops        0.08            # rock outcrops on lowland knolls
+sand_black      0.45            # share of black volcanic sand beaches (more near lava flows)
+# (*) scatter sprites (scatter.py; sprites from tex/veg_atlas.txt, gen_veg.py): per km2 of habitat; hedge / wall per
+# km of plot border; houses = number of villages. Drawn by src/scatter.cpp (Low 1600 m, High 3500 m).
+scatter grove   110
+scatter cedar   150
+scatter palms    70
+scatter tree     30
+scatter shrub    70
+scatter rock     40
+scatter hedge    20
+scatter wall     18
+scatter houses    8
+# (*) texture periods (m per repeat; must divide the chunk = 16 cells = 1280 m; UV max = chunk / period = 20).
+# A3 HANDOFF (t_sand was 32 m: 64 keeps the UVs <= 20 at 80 m cells).
+period t_sand  64
+period t_grass 64
+period t_rock  64
+period t_ash   64
+period t_lava  64
+period t_forest 64
+period t_scrub  64
+
+# ---- light ----------------------------------------------------------------------------------------------------
+light           sky/light.txt   # A2's light set (sunDir, sun, ambient, hemi, fog); fallback = the keys below
+sun_dir         230 40          # fallback sun azimuth elevation
+shadow          0.88            # cast-shadow strength (0..1) of the height-field shadow march
+ao              0.10            # curvature darkening strength

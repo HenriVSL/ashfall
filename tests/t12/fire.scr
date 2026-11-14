@@ -1,0 +1,11 @@
+# T12 smoke: fire LRM (maddog, no enemies), flares, switch to SRM, fire SRM (unguided search)
+2.0 keydown SPACE
+2.1 keyup SPACE
+3.0 keydown F
+3.1 keyup F
+4.0 keydown D
+4.1 keyup D
+5.0 keydown SPACE
+5.1 keyup SPACE
+12.0 expect alive == 1
+12.0 end

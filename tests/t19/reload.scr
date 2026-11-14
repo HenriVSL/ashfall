@@ -1,0 +1,11 @@
+# T19 second run on the ini keys.scr saved: jet.exe -ini t19_jet.ini -mscript tests\t19\reload.scr -window
+waitfor screen title 60
+expect bind look B
+expect bind fire SPACE
+expect bind weapon D
+expect param pilot invertPitch 1
+expect param camera startView 0
+expect param sound master 0.6
+expect param sound warn 0.8
+expect param video preset high
+quit

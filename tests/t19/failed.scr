@@ -1,0 +1,36 @@
+# T19 SORTIE -> MISSION FAILED -> results -> menu. One life, air start, nose down into the sea.
+# jet.exe -mscript tests\t19\failed.scr [-res 1024 768]
+waitfor screen title 60
+setcfg mission lives 1
+arg start air
+key ok
+expect screen fly
+key down 2
+expect item SORTIE
+key ok
+waitfor screen flight 40
+wait 2
+key pause
+expect screen pause
+expect item RESUME
+key down 2
+expect item RESTART_MISSION
+shot shots\t19_pause_sortie_%W.bmp
+key up 2
+key ok
+expect screen flight
+fly DOWN on
+waitfor outcome failed 90
+fly DOWN off
+expect screen flight
+waitfor screen results 10
+expect item CONTINUE
+wait 1
+shot shots\t19_results_failed_%W.bmp
+key down
+expect item FLY_AGAIN
+key up
+key ok
+waitfor screen title 30
+expect screen title
+quit

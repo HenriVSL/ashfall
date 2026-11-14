@@ -1,0 +1,5 @@
+# T22 transonic vapour cone: afterburner run to Mach 1, pull through it
+0.5 air
+0.6 keydown A
+3.5 keydown UP
+4.7 keyup UP

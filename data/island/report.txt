@@ -1,0 +1,694 @@
+# report.txt - jet.isl build report (islandc, T03/T03b). GENERATED: do not edit.
+source island.txt
+file jet.isl bytes=10485780 (10.00 MB, budget <= 16 MB (T03b; load ~1.1 MB/s over SMB): ok)
+file base.trk bytes=60340
+light sky/light.txt sunDir -0.586824 0.642788 -0.492404
+bake: cast shadow (sh > 0.5) on 0.02 % of land samples; flat sunlit ground = light 1.0 per channel
+
+[grid]
+gridN 513 cell 80 x0 -20480 z0 -20480  hMin -200.0 hScale 0.050
+height min -60.00 max 3076.75 (land samples 103923, 665.1 km2)
+summit max 3076.8 at x 560 z 640; crater floor 2616.9
+island centre 1200 1800 radius 19203
+coast rule: 76 sea samples pushed to -4.0 m, 183 land samples raised to 1.0 m; after the LOD0 border snap 92 border samples lie in (-4.0, 1.0) m
+LOD0 border snap: 16896 samples on 1280 m chunk lines (HGHT = rounded, mesh = exact, <= 0.025 m)
+edge fade 1500 m: 0 land samples lowered
+island size (land bbox) 34.1 x 34.2 km
+
+[classes] share of land quads (water = below sea level)
+class 0 water   quads 158477   60.5 %  tint 102 198 189 (shelf on t_sand)
+class 1 sand    quads   1867    0.7 %  tint 253 235 189 (sand on t_sand)
+class 2 grass   quads  86152   32.9 %  tint 116 169 75 (grass on t_grass)
+class 3 rock    quads   9888    3.8 %  tint 134 131 124 (rock on t_rock)
+class 4 ash     quads   5031    1.9 %  tint 164 155 147 (ash on t_ash)
+class 5 lava    quads    684    0.3 %  tint 230 222 214 (lava on t_lava)
+class 6 runway  quads     35    0.0 %  tint 136 178 86 (plateau on t_grass)
+class 7 apron   quads     10    0.0 %  tint 136 178 86 (plateau on t_grass)
+
+[material classes] A11: grass split by texture (CLAS keeps grass); share of land quads
+sand 1.8% grass 44.7% rock 9.5% ash 4.9% lava 0.7% runway 0.0% apron 0.0% forest 29.6% scrub 8.9%
+
+[scatter] A11 (scatter.py -> veg.sct, drawn by src/scatter.cpp). Budgets: Low <= 600 sprites within 1.6 km (VM A measured ~11 us/sprite: 130-175 sprites = 1.5-1.9 ms at 120-150 m AGL over forest/fields/coast, 0.2 ms avg on the low bench route, ~0 above 1.6 km AGL), High <= 2400 within 3.5 km (VM: 750-910 sprites = 7.7-8.3 ms; T40 target). Textures: veg_atlas 171 KB, t_forest + t_scrub 2 x 171 KB, props/fence ~50 KB
+veg.sct bytes=1206744 instances=74365 types=9 cells 32x32 of 1280 m (max 318 per cell) villages 8
+by type: grove 17350 houses 50 cedar 6231 palms 1234 tree 13007 shrub 3170 rock 3507 hedge 20290 wall 9526
+
+[materials]
+mat 0 t_sand   flags 0x0000 tint fffdebbd period 64
+mat 1 t_grass  flags 0x0000 tint ff74a94b period 64
+mat 2 t_rock   flags 0x0000 tint ff86837c period 64
+mat 3 t_ash    flags 0x0000 tint ffa49b93 period 64
+mat 4 t_lava   flags 0x0000 tint ffe6ded6 period 64
+mat 5 foam     flags 0x0a03 tint ffffffff period foam 64 x 40 m
+mat 6 t_forest flags 0x0000 tint ff487638 period 64
+mat 7 t_scrub  flags 0x0000 tint ff969258 period 64
+
+[chunks]
+stored 597 of 1024 (130 all-underwater: LOD0/1 alias LOD2)
+lod edge_m  tris_total  terrain  skirts  foam   tris/chunk(max)  verts_total  batches
+0     80      253192    239104       0  14088      752            175309      1394
+1    160       96336     59776   29888   6672      304             71172      1277
+2    320       41432     19104   19104   3224      120             32775      1239
+3    640       14328      4776    9552      0       24             11457       865
+4   1280        5970      1194    4776      0       10              4776       597
+vertices 295489 (6925 KB)  indices 1233774  batches 5372
+max UV 20.00 (terrain) 9.05 (foam)
+skirt depth by LOD (m, max of DESIGN min and the measured border mismatch + 1): 1:24.0-106.6 2:48.0-114.9 3:96.0-320.9 4:192.0-320.9
+max border mismatch between LODs (m): 0:0.0 1:105.6 2:113.9 3:319.9 4:319.9
+coast foam segments LOD0 3522 LOD1 1668 LOD2 806
+
+[views] engine LOD rule (d_k = lodScale x 28.6 x edge_k to the chunk centre, far 18 km, 70 deg), terrain + foam triangles, skirts counted on every side (upper bound; the engine draws them only at LOD changes: use 'simh island 0.85' for the exact engine numbers); DESIGN 9.3 Low = 1.5-3k typ., 4k max
+view lodScale 1.0 50 m over the runway         pitch    0: tris max  8028 (no skirts  4892, LOD0-4 chunks 4/9/27/101/10)  min  3672 ( 3320)
+view lodScale 1.0 1500 m over the crater       pitch  -15: tris max  6604 (no skirts  3628, LOD0-4 chunks 2/7/28/101/2)  min  5388 ( 2828)
+view lodScale 1.0 8000 m over the sea 10 km SW pitch  -15: tris max  2794 (no skirts   962, LOD0-4 chunks 0/0/4/102/9)  min   360 (  120)
+view lodScale 1.0 on the threshold (3.5 m)     pitch    0: tris max  8410 (no skirts  5298, LOD0-4 chunks 5/8/27/104/9)  min  4404 ( 3860)
+view lodScale 1.0 300 m over the mid slopes    pitch    0: tris max  7924 (no skirts  4836, LOD0-4 chunks 4/9/25/102/10)  min  6220 ( 4412)
+view lodScale 0.8 50 m over the runway         pitch    0: tris max  6292 (no skirts  3668, LOD0-4 chunks 3/6/21/75/46)  min  3232 ( 2832)
+view lodScale 0.8 1500 m over the crater       pitch  -15: tris max  4910 (no skirts  2262, LOD0-4 chunks 0/7/21/78/35)  min  4424 ( 2072)
+view lodScale 0.8 8000 m over the sea 10 km SW pitch  -15: tris max  2102 (no skirts   638, LOD0-4 chunks 0/0/0/68/47)  min   360 (  120)
+view lodScale 0.8 on the threshold (3.5 m)     pitch    0: tris max  6632 (no skirts  4056, LOD0-4 chunks 4/5/21/75/48)  min  4084 ( 3476)
+view lodScale 0.8 300 m over the mid slopes    pitch    0: tris max  6558 (no skirts  4038, LOD0-4 chunks 4/5/21/74/43)  min  5162 ( 3634)
+
+[base]
+runway centre -13850.0 -2200.0 heading 270.0 length 2800 width 45 height 12.00
+threshold spawn -12490.0 12.20 -2200.0 heading 270.0
+air spawn 1200 2000 27800 heading 180.0
+air spawn 27200 2000 1800 heading 270.0
+air spawn 1200 2000 -24200 heading 0.0
+air spawn -24800 2000 1800 heading 90.0
+designation 27 / 09
+fence 3860 m, 340 tris (double-sided)
+climb-out corridor (runway + 5000 m, half width 600 -> 1500 m): max terrain 46.2 m at a -1370 b -520 (limit 150): ok
+coast crossed 570 m past the departure end (heading 270)
+sea 2880 m left of the runway centre (b < 0 side)
+base.trk: 84 cells (128 m), 163 batches, LOD0 738 tris, LOD1 280 tris, 19 instances (hangar tower tank radome lightmast truck tug jeep windsock)
+box hangar  -13765.0 12.0 -1815.0  -13725.0 26.0 -1785.0
+box hangar  -13835.0 12.0 -1815.0  -13795.0 26.0 -1785.0
+box hangar  -13905.0 12.0 -1815.0  -13865.0 26.0 -1785.0
+box hangar  -13975.0 12.0 -1815.0  -13935.0 26.0 -1785.0
+box tower   -14054.0 12.0 -1874.0  -14046.0 37.0 -1866.0
+box tank    -13627.0 12.0 -1787.0  -13613.0 23.6 -1773.0
+box tank    -13602.0 12.0 -1757.0  -13588.0 23.6 -1743.0
+box tank    -13652.0 12.0 -1757.0  -13638.0 23.6 -1743.0
+box radome  -14186.0 12.0 -1736.0  -14174.0 28.2 -1724.0
+
+[minimap]
+map map_island 256x256 rect x0 -18512 z0 -17912 x1 20912 z1 21512 (154 m/px)
+
+[chunk list] cx cz  tris LOD0..4  land%
+chunk 13  2    64   64   64  24  10    0
+chunk 14  2    64   64   64  24  10    0
+chunk 15  2    64   64   64  24  10    0
+chunk 16  2    64   64   64  24  10    0
+chunk 17  2    64   64   64  24  10    0
+chunk 12  3    64   64   64  24  10    0
+chunk 13  3    64   64   64  24  10    0
+chunk 14  3    64   64   64  24  10    0
+chunk 15  3    64   64   64  24  10    0
+chunk 16  3    64   64   64  24  10    0
+chunk 17  3    64   64   64  24  10    0
+chunk 18  3    64   64   64  24  10    0
+chunk 19  3    64   64   64  24  10    0
+chunk 20  3    64   64   64  24  10    0
+chunk 21  3    64   64   64  24  10    0
+chunk  7  4    64   64   64  24  10    0
+chunk  8  4    64   64   64  24  10    0
+chunk  9  4    64   64   64  24  10    0
+chunk 10  4    64   64   64  24  10    0
+chunk 11  4    64   64   64  24  10    0
+chunk 12  4    64   64   64  24  10    0
+chunk 13  4   592  232   80  24  10    2
+chunk 14  4   728  296  112  24  10   62
+chunk 15  4   704  264   96  24  10   87
+chunk 16  4   656  264   96  24  10   74
+chunk 17  4   644  268   92  24  10   31
+chunk 18  4   524  204   64  24  10    0
+chunk 19  4   712  288  112  24  10   22
+chunk 20  4   732  300  116  24  10   39
+chunk 21  4    64   64   64  24  10    0
+chunk  6  5    64   64   64  24  10    0
+chunk  7  5    64   64   64  24  10    0
+chunk  8  5    64   64   64  24  10    0
+chunk  9  5   608  240   88  24  10    1
+chunk 10  5   680  256   96  24  10   15
+chunk 11  5   540  204   68  24  10    1
+chunk 12  5   520  200   72  24  10    0
+chunk 13  5   752  304  120  24  10   55
+chunk 14  5   512  192   64  24  10  100
+chunk 15  5   512  192   64  24  10  100
+chunk 16  5   512  192   64  24  10  100
+chunk 17  5   540  204   68  24  10   98
+chunk 18  5   668  260   96  24  10   89
+chunk 19  5   536  200   72  24  10   99
+chunk 20  5   540  204   68  24  10   98
+chunk 21  5   612  244   92  24  10    6
+chunk 22  5    64   64   64  24  10    0
+chunk  5  6    64   64   64  24  10    0
+chunk  6  6    64   64   64  24  10    0
+chunk  7  6   616  248   88  24  10    6
+chunk  8  6   752  304  120  24  10   45
+chunk  9  6   616  240   88  24  10   89
+chunk 10  6   512  192   64  24  10  100
+chunk 11  6   652  260  100  24  10   83
+chunk 12  6   712  288  112  24  10   72
+chunk 13  6   512  192   64  24  10  100
+chunk 14  6   512  192   64  24  10  100
+chunk 15  6   512  192   64  24  10  100
+chunk 16  6   512  192   64  24  10  100
+chunk 17  6   512  192   64  24  10  100
+chunk 18  6   512  192   64  24  10  100
+chunk 19  6   512  192   64  24  10  100
+chunk 20  6   512  192   64  24  10  100
+chunk 21  6   648  256   96  24  10   36
+chunk 22  6    64   64   64  24  10    0
+chunk 23  6    64   64   64  24  10    0
+chunk  4  7    64   64   64  24  10    0
+chunk  5  7    64   64   64  24  10    0
+chunk  6  7   680  280  112  24  10   25
+chunk  7  7   632  248   88  24  10   81
+chunk  8  7   512  192   64  24  10  100
+chunk  9  7   512  192   64  24  10  100
+chunk 10  7   512  192   64  24  10  100
+chunk 11  7   512  192   64  24  10  100
+chunk 12  7   512  192   64  24  10  100
+chunk 13  7   512  192   64  24  10  100
+chunk 14  7   512  192   64  24  10  100
+chunk 15  7   512  192   64  24  10  100
+chunk 16  7   512  192   64  24  10  100
+chunk 17  7   512  192   64  24  10  100
+chunk 18  7   512  192   64  24  10  100
+chunk 19  7   512  192   64  24  10  100
+chunk 20  7   512  192   64  24  10  100
+chunk 21  7   620  244   84  24  10   84
+chunk 22  7   572  220   76  24  10    5
+chunk 23  7    64   64   64  24  10    0
+chunk 24  7    64   64   64  24  10    0
+chunk  4  8    64   64   64  24  10    0
+chunk  5  8   584  224   80  24  10    1
+chunk  6  8   640  248   88  24  10   89
+chunk  7  8   512  192   64  24  10  100
+chunk  8  8   512  192   64  24  10  100
+chunk  9  8   512  192   64  24  10  100
+chunk 10  8   512  192   64  24  10  100
+chunk 11  8   512  192   64  24  10  100
+chunk 12  8   512  192   64  24  10  100
+chunk 13  8   512  192   64  24  10  100
+chunk 14  8   512  192   64  24  10  100
+chunk 15  8   512  192   64  24  10  100
+chunk 16  8   512  192   64  24  10  100
+chunk 17  8   512  192   64  24  10  100
+chunk 18  8   512  192   64  24  10  100
+chunk 19  8   512  192   64  24  10  100
+chunk 20  8   512  192   64  24  10  100
+chunk 21  8   512  192   64  24  10  100
+chunk 22  8   648  256   96  24  10   85
+chunk 23  8   640  240   80  24  10    3
+chunk 24  8    64   64   64  24  10    0
+chunk  4  9    64   64   64  24  10    0
+chunk  5  9   664  272  112  24  10   21
+chunk  6  9   512  192   64  24  10  100
+chunk  7  9   512  192   64  24  10  100
+chunk  8  9   512  192   64  24  10  100
+chunk  9  9   512  192   64  24  10  100
+chunk 10  9   512  192   64  24  10  100
+chunk 11  9   512  192   64  24  10  100
+chunk 12  9   512  192   64  24  10  100
+chunk 13  9   512  192   64  24  10  100
+chunk 14  9   512  192   64  24  10  100
+chunk 15  9   512  192   64  24  10  100
+chunk 16  9   512  192   64  24  10  100
+chunk 17  9   512  192   64  24  10  100
+chunk 18  9   512  192   64  24  10  100
+chunk 19  9   512  192   64  24  10  100
+chunk 20  9   512  192   64  24  10  100
+chunk 21  9   512  192   64  24  10  100
+chunk 22  9   512  192   64  24  10  100
+chunk 23  9   680  272   96  24  10   32
+chunk 24  9    64   64   64  24  10    0
+chunk 29  9    64   64   64  24  10    0
+chunk 30  9    64   64   64  24  10    0
+chunk  4 10    64   64   64  24  10    0
+chunk  5 10   720  288  112  24  10   50
+chunk  6 10   512  192   64  24  10  100
+chunk  7 10   512  192   64  24  10  100
+chunk  8 10   512  192   64  24  10  100
+chunk  9 10   512  192   64  24  10  100
+chunk 10 10   512  192   64  24  10  100
+chunk 11 10   512  192   64  24  10  100
+chunk 12 10   512  192   64  24  10  100
+chunk 13 10   512  192   64  24  10  100
+chunk 14 10   512  192   64  24  10  100
+chunk 15 10   512  192   64  24  10  100
+chunk 16 10   512  192   64  24  10  100
+chunk 17 10   512  192   64  24  10  100
+chunk 18 10   512  192   64  24  10  100
+chunk 19 10   512  192   64  24  10  100
+chunk 20 10   512  192   64  24  10  100
+chunk 21 10   512  192   64  24  10  100
+chunk 22 10   512  192   64  24  10  100
+chunk 23 10   696  288  104  24  10   20
+chunk 24 10    64   64   64  24  10    0
+chunk 28 10    64   64   64  24  10    0
+chunk 29 10   704  288  112  24  10   49
+chunk 30 10   604  236   84  24  10   15
+chunk  3 11    64   64   64  24  10    0
+chunk  4 11    64   64   64  24  10    0
+chunk  5 11   680  280  104  24  10   78
+chunk  6 11   512  192   64  24  10  100
+chunk  7 11   512  192   64  24  10  100
+chunk  8 11   512  192   64  24  10  100
+chunk  9 11   512  192   64  24  10  100
+chunk 10 11   512  192   64  24  10  100
+chunk 11 11   512  192   64  24  10  100
+chunk 12 11   512  192   64  24  10  100
+chunk 13 11   512  192   64  24  10  100
+chunk 14 11   512  192   64  24  10  100
+chunk 15 11   512  192   64  24  10  100
+chunk 16 11   512  192   64  24  10  100
+chunk 17 11   512  192   64  24  10  100
+chunk 18 11   512  192   64  24  10  100
+chunk 19 11   512  192   64  24  10  100
+chunk 20 11   512  192   64  24  10  100
+chunk 21 11   512  192   64  24  10  100
+chunk 22 11   512  192   64  24  10  100
+chunk 23 11   672  272  104  24  10    8
+chunk 24 11    64   64   64  24  10    0
+chunk 28 11    64   64   64  24  10    0
+chunk 29 11   636  260   92  24  10   24
+chunk 30 11   592  232   88  24  10    5
+chunk  3 12    64   64   64  24  10    0
+chunk  4 12   620  244   92  24  10    3
+chunk  5 12   644  252   92  24  10   92
+chunk  6 12   512  192   64  24  10  100
+chunk  7 12   512  192   64  24  10  100
+chunk  8 12   512  192   64  24  10  100
+chunk  9 12   512  192   64  24  10  100
+chunk 10 12   512  192   64  24  10  100
+chunk 11 12   512  192   64  24  10  100
+chunk 12 12   512  192   64  24  10  100
+chunk 13 12   512  192   64  24  10  100
+chunk 14 12   512  192   64  24  10  100
+chunk 15 12   512  192   64  24  10  100
+chunk 16 12   512  192   64  24  10  100
+chunk 17 12   512  192   64  24  10  100
+chunk 18 12   512  192   64  24  10  100
+chunk 19 12   512  192   64  24  10  100
+chunk 20 12   512  192   64  24  10  100
+chunk 21 12   512  192   64  24  10  100
+chunk 22 12   540  204   76  24  10   99
+chunk 23 12   660  268  100  24  10   19
+chunk 24 12    64   64   64  24  10    0
+chunk 25 12    64   64   64  24  10    0
+chunk 26 12    64   64   64  24  10    0
+chunk  2 13    64   64   64  24  10    0
+chunk  3 13   592  232   88  24  10    6
+chunk  4 13   696  280  104  24  10   69
+chunk  5 13   512  192   64  24  10  100
+chunk  6 13   512  192   64  24  10  100
+chunk  7 13   512  192   64  24  10  100
+chunk  8 13   512  192   64  24  10  100
+chunk  9 13   512  192   64  24  10  100
+chunk 10 13   512  192   64  24  10  100
+chunk 11 13   512  192   64  24  10  100
+chunk 12 13   512  192   64  24  10  100
+chunk 13 13   512  192   64  24  10  100
+chunk 14 13   512  192   64  24  10  100
+chunk 15 13   512  192   64  24  10  100
+chunk 16 13   512  192   64  24  10  100
+chunk 17 13   512  192   64  24  10  100
+chunk 18 13   512  192   64  24  10  100
+chunk 19 13   512  192   64  24  10  100
+chunk 20 13   512  192   64  24  10  100
+chunk 21 13   512  192   64  24  10  100
+chunk 22 13   512  192   64  24  10  100
+chunk 23 13   580  220   76  24  10   94
+chunk 24 13   640  256   96  24  10   40
+chunk 25 13   556  212   76  24  10    3
+chunk 26 13    64   64   64  24  10    0
+chunk 27 13    64   64   64  24  10    0
+chunk  2 14    64   64   64  24  10    0
+chunk  3 14   664  264   96  24  10   31
+chunk  4 14   512  192   64  24  10  100
+chunk  5 14   512  192   64  24  10  100
+chunk  6 14   512  192   64  24  10  100
+chunk  7 14   512  192   64  24  10  100
+chunk  8 14   512  192   64  24  10  100
+chunk  9 14   512  192   64  24  10  100
+chunk 10 14   512  192   64  24  10  100
+chunk 11 14   512  192   64  24  10  100
+chunk 12 14   512  192   64  24  10  100
+chunk 13 14   512  192   64  24  10  100
+chunk 14 14   512  192   64  24  10  100
+chunk 15 14   512  192   64  24  10  100
+chunk 16 14   512  192   64  24  10  100
+chunk 17 14   512  192   64  24  10  100
+chunk 18 14   512  192   64  24  10  100
+chunk 19 14   512  192   64  24  10  100
+chunk 20 14   512  192   64  24  10  100
+chunk 21 14   512  192   64  24  10  100
+chunk 22 14   512  192   64  24  10  100
+chunk 23 14   512  192   64  24  10  100
+chunk 24 14   512  192   64  24  10  100
+chunk 25 14   604  236   84  24  10   91
+chunk 26 14   660  260   92  24  10   18
+chunk 27 14    64   64   64  24  10    0
+chunk 28 14    64   64   64  24  10    0
+chunk  2 15    64   64   64  24  10    0
+chunk  3 15   532  204   68  24  10    0
+chunk  4 15   656  264   96  24  10   43
+chunk  5 15   548  212   76  24  10   98
+chunk  6 15   512  192   64  24  10  100
+chunk  7 15   512  192   64  24  10  100
+chunk  8 15   512  192   64  24  10  100
+chunk  9 15   512  192   64  24  10  100
+chunk 10 15   512  192   64  24  10  100
+chunk 11 15   512  192   64  24  10  100
+chunk 12 15   512  192   64  24  10  100
+chunk 13 15   512  192   64  24  10  100
+chunk 14 15   512  192   64  24  10  100
+chunk 15 15   512  192   64  24  10  100
+chunk 16 15   512  192   64  24  10  100
+chunk 17 15   512  192   64  24  10  100
+chunk 18 15   512  192   64  24  10  100
+chunk 19 15   512  192   64  24  10  100
+chunk 20 15   512  192   64  24  10  100
+chunk 21 15   512  192   64  24  10  100
+chunk 22 15   512  192   64  24  10  100
+chunk 23 15   512  192   64  24  10  100
+chunk 24 15   512  192   64  24  10  100
+chunk 25 15   512  192   64  24  10  100
+chunk 26 15   672  264   96  24  10   71
+chunk 27 15    64   64   64  24  10    0
+chunk 28 15    64   64   64  24  10    0
+chunk  3 16    64   64   64  24  10    0
+chunk  4 16    64   64   64  24  10    0
+chunk  5 16   688  272  104  24  10   84
+chunk  6 16   512  192   64  24  10  100
+chunk  7 16   512  192   64  24  10  100
+chunk  8 16   512  192   64  24  10  100
+chunk  9 16   512  192   64  24  10  100
+chunk 10 16   512  192   64  24  10  100
+chunk 11 16   512  192   64  24  10  100
+chunk 12 16   512  192   64  24  10  100
+chunk 13 16   512  192   64  24  10  100
+chunk 14 16   512  192   64  24  10  100
+chunk 15 16   512  192   64  24  10  100
+chunk 16 16   512  192   64  24  10  100
+chunk 17 16   512  192   64  24  10  100
+chunk 18 16   512  192   64  24  10  100
+chunk 19 16   512  192   64  24  10  100
+chunk 20 16   512  192   64  24  10  100
+chunk 21 16   512  192   64  24  10  100
+chunk 22 16   512  192   64  24  10  100
+chunk 23 16   512  192   64  24  10  100
+chunk 24 16   512  192   64  24  10  100
+chunk 25 16   512  192   64  24  10  100
+chunk 26 16   548  212   76  24  10   98
+chunk 27 16   636  244   92  24  10    6
+chunk 28 16    64   64   64  24  10    0
+chunk  3 17    64   64   64  24  10    0
+chunk  4 17    64   64   64  24  10    0
+chunk  5 17   696  264  104  24  10   67
+chunk  6 17   512  192   64  24  10  100
+chunk  7 17   512  192   64  24  10  100
+chunk  8 17   512  192   64  24  10  100
+chunk  9 17   512  192   64  24  10  100
+chunk 10 17   512  192   64  24  10  100
+chunk 11 17   512  192   64  24  10  100
+chunk 12 17   512  192   64  24  10  100
+chunk 13 17   512  192   64  24  10  100
+chunk 14 17   512  192   64  24  10  100
+chunk 15 17   512  192   64  24  10  100
+chunk 16 17   512  192   64  24  10  100
+chunk 17 17   512  192   64  24  10  100
+chunk 18 17   512  192   64  24  10  100
+chunk 19 17   512  192   64  24  10  100
+chunk 20 17   512  192   64  24  10  100
+chunk 21 17   512  192   64  24  10  100
+chunk 22 17   512  192   64  24  10  100
+chunk 23 17   512  192   64  24  10  100
+chunk 24 17   512  192   64  24  10  100
+chunk 25 17   512  192   64  24  10  100
+chunk 26 17   516  196   68  24  10  100
+chunk 27 17   668  260  100  24  10   23
+chunk 28 17    64   64   64  24  10    0
+chunk  4 18    64   64   64  24  10    0
+chunk  5 18   660  252   92  24  10   17
+chunk  6 18   524  204   76  24  10  100
+chunk  7 18   512  192   64  24  10  100
+chunk  8 18   512  192   64  24  10  100
+chunk  9 18   512  192   64  24  10  100
+chunk 10 18   512  192   64  24  10  100
+chunk 11 18   512  192   64  24  10  100
+chunk 12 18   512  192   64  24  10  100
+chunk 13 18   512  192   64  24  10  100
+chunk 14 18   512  192   64  24  10  100
+chunk 15 18   512  192   64  24  10  100
+chunk 16 18   512  192   64  24  10  100
+chunk 17 18   512  192   64  24  10  100
+chunk 18 18   512  192   64  24  10  100
+chunk 19 18   512  192   64  24  10  100
+chunk 20 18   512  192   64  24  10  100
+chunk 21 18   512  192   64  24  10  100
+chunk 22 18   512  192   64  24  10  100
+chunk 23 18   512  192   64  24  10  100
+chunk 24 18   512  192   64  24  10  100
+chunk 25 18   512  192   64  24  10  100
+chunk 26 18   512  192   64  24  10  100
+chunk 27 18   712  288  112  24  10   25
+chunk 28 18    64   64   64  24  10    0
+chunk 29 18    64   64   64  24  10    0
+chunk  4 19    64   64   64  24  10    0
+chunk  5 19   524  196   68  24  10    0
+chunk  6 19   668  268   92  24  10   71
+chunk  7 19   512  192   64  24  10  100
+chunk  8 19   512  192   64  24  10  100
+chunk  9 19   512  192   64  24  10  100
+chunk 10 19   512  192   64  24  10  100
+chunk 11 19   512  192   64  24  10  100
+chunk 12 19   512  192   64  24  10  100
+chunk 13 19   512  192   64  24  10  100
+chunk 14 19   512  192   64  24  10  100
+chunk 15 19   512  192   64  24  10  100
+chunk 16 19   512  192   64  24  10  100
+chunk 17 19   512  192   64  24  10  100
+chunk 18 19   512  192   64  24  10  100
+chunk 19 19   512  192   64  24  10  100
+chunk 20 19   512  192   64  24  10  100
+chunk 21 19   512  192   64  24  10  100
+chunk 22 19   512  192   64  24  10  100
+chunk 23 19   512  192   64  24  10  100
+chunk 24 19   512  192   64  24  10  100
+chunk 25 19   512  192   64  24  10  100
+chunk 26 19   512  192   64  24  10  100
+chunk 27 19   664  256   96  24  10   31
+chunk 28 19    64   64   64  24  10    0
+chunk  4 20    64   64   64  24  10    0
+chunk  5 20    64   64   64  24  10    0
+chunk  6 20   644  260  108  24  10   21
+chunk  7 20   572  212   76  24  10   96
+chunk  8 20   512  192   64  24  10  100
+chunk  9 20   512  192   64  24  10  100
+chunk 10 20   512  192   64  24  10  100
+chunk 11 20   512  192   64  24  10  100
+chunk 12 20   512  192   64  24  10  100
+chunk 13 20   512  192   64  24  10  100
+chunk 14 20   512  192   64  24  10  100
+chunk 15 20   512  192   64  24  10  100
+chunk 16 20   512  192   64  24  10  100
+chunk 17 20   512  192   64  24  10  100
+chunk 18 20   512  192   64  24  10  100
+chunk 19 20   512  192   64  24  10  100
+chunk 20 20   512  192   64  24  10  100
+chunk 21 20   512  192   64  24  10  100
+chunk 22 20   512  192   64  24  10  100
+chunk 23 20   512  192   64  24  10  100
+chunk 24 20   512  192   64  24  10  100
+chunk 25 20   512  192   64  24  10  100
+chunk 26 20   632  248   88  24  10   89
+chunk 27 20   600  232   88  24  10    6
+chunk 28 20    64   64   64  24  10    0
+chunk  5 21    64   64   64  24  10    0
+chunk  6 21    64   64   64  24  10    0
+chunk  7 21   716  244   92  24  10   20
+chunk  8 21   656  256   96  24  10   77
+chunk  9 21   644  244   92  24  10   87
+chunk 10 21   548  212   76  24  10  100
+chunk 11 21   512  192   64  24  10  100
+chunk 12 21   512  192   64  24  10  100
+chunk 13 21   512  192   64  24  10  100
+chunk 14 21   512  192   64  24  10  100
+chunk 15 21   512  192   64  24  10  100
+chunk 16 21   512  192   64  24  10  100
+chunk 17 21   512  192   64  24  10  100
+chunk 18 21   512  192   64  24  10  100
+chunk 19 21   512  192   64  24  10  100
+chunk 20 21   512  192   64  24  10  100
+chunk 21 21   512  192   64  24  10  100
+chunk 22 21   512  192   64  24  10  100
+chunk 23 21   512  192   64  24  10  100
+chunk 24 21   512  192   64  24  10  100
+chunk 25 21   512  192   64  24  10  100
+chunk 26 21   688  272  104  24  10   71
+chunk 27 21    64   64   64  24  10    0
+chunk 28 21    64   64   64  24  10    0
+chunk  5 22    64   64   64  24  10    0
+chunk  6 22    64   64   64  24  10    0
+chunk  7 22    64   64   64  24  10    0
+chunk  8 22    64   64   64  24  10    0
+chunk  9 22   540  204   68  24  10    1
+chunk 10 22   636  252   92  24  10   10
+chunk 11 22   644  244   84  24  10   72
+chunk 12 22   512  192   64  24  10  100
+chunk 13 22   512  192   64  24  10  100
+chunk 14 22   512  192   64  24  10  100
+chunk 15 22   512  192   64  24  10  100
+chunk 16 22   512  192   64  24  10  100
+chunk 17 22   512  192   64  24  10  100
+chunk 18 22   512  192   64  24  10  100
+chunk 19 22   512  192   64  24  10  100
+chunk 20 22   512  192   64  24  10  100
+chunk 21 22   512  192   64  24  10  100
+chunk 22 22   512  192   64  24  10  100
+chunk 23 22   512  192   64  24  10  100
+chunk 24 22   512  192   64  24  10  100
+chunk 25 22   512  192   64  24  10  100
+chunk 26 22   720  296  120  24  10   45
+chunk 27 22    64   64   64  24  10    0
+chunk 28 22    64   64   64  24  10    0
+chunk  7 23    64   64   64  24  10    0
+chunk  8 23    64   64   64  24  10    0
+chunk  9 23    64   64   64  24  10    0
+chunk 10 23    64   64   64  24  10    0
+chunk 11 23   656  256   96  24  10   36
+chunk 12 23   512  192   64  24  10  100
+chunk 13 23   512  192   64  24  10  100
+chunk 14 23   512  192   64  24  10  100
+chunk 15 23   512  192   64  24  10  100
+chunk 16 23   512  192   64  24  10  100
+chunk 17 23   512  192   64  24  10  100
+chunk 18 23   512  192   64  24  10  100
+chunk 19 23   512  192   64  24  10  100
+chunk 20 23   512  192   64  24  10  100
+chunk 21 23   512  192   64  24  10  100
+chunk 22 23   512  192   64  24  10  100
+chunk 23 23   512  192   64  24  10  100
+chunk 24 23   512  192   64  24  10  100
+chunk 25 23   592  240   88  24  10   96
+chunk 26 23   632  240   88  24  10    6
+chunk 27 23    64   64   64  24  10    0
+chunk 28 23    64   64   64  24  10    0
+chunk 10 24    64   64   64  24  10    0
+chunk 11 24   648  264   96  24  10   30
+chunk 12 24   512  192   64  24  10  100
+chunk 13 24   512  192   64  24  10  100
+chunk 14 24   512  192   64  24  10  100
+chunk 15 24   512  192   64  24  10  100
+chunk 16 24   512  192   64  24  10  100
+chunk 17 24   512  192   64  24  10  100
+chunk 18 24   512  192   64  24  10  100
+chunk 19 24   512  192   64  24  10  100
+chunk 20 24   512  192   64  24  10  100
+chunk 21 24   512  192   64  24  10  100
+chunk 22 24   512  192   64  24  10  100
+chunk 23 24   512  192   64  24  10  100
+chunk 24 24   512  192   64  24  10  100
+chunk 25 24   736  296  112  24  10   43
+chunk 26 24    64   64   64  24  10    0
+chunk 27 24    64   64   64  24  10    0
+chunk 10 25    64   64   64  24  10    0
+chunk 11 25   604  244   84  24  10    8
+chunk 12 25   556  212   76  24  10   98
+chunk 13 25   512  192   64  24  10  100
+chunk 14 25   512  192   64  24  10  100
+chunk 15 25   512  192   64  24  10  100
+chunk 16 25   512  192   64  24  10  100
+chunk 17 25   512  192   64  24  10  100
+chunk 18 25   512  192   64  24  10  100
+chunk 19 25   512  192   64  24  10  100
+chunk 20 25   512  192   64  24  10  100
+chunk 21 25   512  192   64  24  10  100
+chunk 22 25   512  192   64  24  10  100
+chunk 23 25   512  192   64  24  10  100
+chunk 24 25   720  304  120  24  10   75
+chunk 25 25   552  208   72  24  10    1
+chunk 26 25    64   64   64  24  10    0
+chunk 27 25    64   64   64  24  10    0
+chunk 10 26    64   64   64  24  10    0
+chunk 11 26    64   64   64  24  10    0
+chunk 12 26   648  256   96  24  10   84
+chunk 13 26   512  192   64  24  10  100
+chunk 14 26   512  192   64  24  10  100
+chunk 15 26   512  192   64  24  10  100
+chunk 16 26   512  192   64  24  10  100
+chunk 17 26   512  192   64  24  10  100
+chunk 18 26   512  192   64  24  10  100
+chunk 19 26   512  192   64  24  10  100
+chunk 20 26   512  192   64  24  10  100
+chunk 21 26   512  192   64  24  10  100
+chunk 22 26   576  224   80  24  10   97
+chunk 23 26   720  288  112  24  10   30
+chunk 24 26   568  216   72  24  10    2
+chunk 25 26    64   64   64  24  10    0
+chunk 26 26    64   64   64  24  10    0
+chunk 11 27    64   64   64  24  10    0
+chunk 12 27   692  268   92  24  10   26
+chunk 13 27   556  212   76  24  10   93
+chunk 14 27   512  192   64  24  10  100
+chunk 15 27   512  192   64  24  10  100
+chunk 16 27   512  192   64  24  10  100
+chunk 17 27   512  192   64  24  10  100
+chunk 18 27   512  192   64  24  10  100
+chunk 19 27   512  192   64  24  10  100
+chunk 20 27   512  192   64  24  10  100
+chunk 21 27   560  216   80  24  10  100
+chunk 22 27   712  296  112  24  10   24
+chunk 23 27    64   64   64  24  10    0
+chunk 24 27    64   64   64  24  10    0
+chunk 25 27    64   64   64  24  10    0
+chunk 11 28    64   64   64  24  10    0
+chunk 12 28    64   64   64  24  10    0
+chunk 13 28   628  244   92  24  10   18
+chunk 14 28   712  304  112  24  10   51
+chunk 15 28   664  256   96  24  10   43
+chunk 16 28   696  280  104  24  10   67
+chunk 17 28   652  260   92  24  10   88
+chunk 18 28   512  192   64  24  10  100
+chunk 19 28   512  192   64  24  10  100
+chunk 20 28   512  192   64  24  10  100
+chunk 21 28   664  264   96  24  10   91
+chunk 22 28    64   64   64  24  10    0
+chunk 23 28    64   64   64  24  10    0
+chunk 24 28    64   64   64  24  10    0
+chunk  9 29   568  216   80  24  10    3
+chunk 10 29   620  252   92  24  10   21
+chunk 11 29    64   64   64  24  10    0
+chunk 12 29    64   64   64  24  10    0
+chunk 13 29    64   64   64  24  10    0
+chunk 14 29    64   64   64  24  10    0
+chunk 15 29    64   64   64  24  10    0
+chunk 16 29    64   64   64  24  10    0
+chunk 17 29   532  204   68  24  10    1
+chunk 18 29   664  272  104  24  10   64
+chunk 19 29   532  204   68  24  10   98
+chunk 20 29   512  192   64  24  10  100
+chunk 21 29   712  296  120  24  10   61
+chunk 22 29    64   64   64  24  10    0
+chunk 23 29    64   64   64  24  10    0
+chunk  9 30   532  204   68  24  10    0
+chunk 10 30   608  240   88  24  10   11
+chunk 11 30    64   64   64  24  10    0
+chunk 13 30    64   64   64  24  10    0
+chunk 14 30    64   64   64  24  10    0
+chunk 15 30    64   64   64  24  10    0
+chunk 16 30    64   64   64  24  10    0
+chunk 17 30    64   64   64  24  10    0
+chunk 18 30    64   64   64  24  10    0
+chunk 19 30   644  252   92  24  10   30
+chunk 20 30   704  288  112  24  10   61
+chunk 21 30   576  224   80  24  10    4
+chunk 22 30    64   64   64  24  10    0
+chunk 18 31    64   64   64  24  10    0
+chunk 19 31    64   64   64  24  10    0
+chunk 20 31    64   64   64  24  10    0
+chunk 21 31    64   64   64  24  10    0
+chunk 22 31    64   64   64  24  10    0

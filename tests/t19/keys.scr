@@ -1,0 +1,91 @@
+# T19 key capture + conflicts + defaults + settings saved (t19_jet.ini) and reloaded
+# jet.exe -mscript tests\t19\keys.scr -window ; then jet.exe -ini t19_jet.ini -mscript tests\t19\reload.scr -window
+waitfor screen title 60
+wait 1
+key down
+key ok
+expect screen options
+expect tab controls
+key down 8
+expect item FIRE
+key ok
+wait 0.2
+shot shots\t19_capture_%W.bmp
+bind G
+expect bind fire G
+expect cfg controls fire key G, none, none
+# conflict: FIRE gets D (NEXT WEAPON's key) -> swapped, NEXT WEAPON gets G
+key ok
+bind D
+expect bind fire D
+expect bind weapon G
+expect msg SWAPPED
+shot shots\t19_conflict_%W.bmp
+expect cfg controls weapon key G, none, none
+# reserved key and cancel
+key ok
+bind F5
+expect bind fire D
+expect msg RESERVED
+key ok
+bind ESC
+expect bind fire D
+# DEL = default (FIRE -> SPACE takes it back from nobody; NEXT WEAPON -> D)
+key del
+expect bind fire SPACE
+key down
+expect item NEXT_WEAPON
+key del
+expect bind weapon D
+expect cfg controls fire key SPACE, none, none
+# a custom key that must survive the reload: LOOK AT TARGET -> B
+key down 3
+expect item LOOK_AT_TARGET
+key ok
+bind B
+expect bind look B
+key down 2
+expect item INVERT_PITCH
+key right
+expect param pilot invertPitch 1
+expect cfg pilot invertPitch 1
+key down
+expect item CONTROL_STYLE
+key right
+expect param pilot mode novice
+key left
+expect param pilot mode expert
+# VIDEO: default view -> cockpit, preset -> high
+key up 15
+key right
+expect tab video
+key down
+key right
+expect cfg video preset high
+key down 3
+expect item DEFAULT_VIEW
+key right
+expect param camera startView 0
+expect cfg camera startView 0
+shot shots\t19_video_changed_%W.bmp
+# SOUND: master 0.7 -> 0.6, warning tones 1.0 -> 0.8
+key up 4
+key right
+expect tab sound
+key down
+key left
+expect param sound master 0.6
+key down 2
+key left 2
+expect param sound warn 0.8
+expect cfg sound warn 0.80
+key back
+expect screen title
+# fresh read of the saved file (as a new start would)
+reload
+expect param sound master 0.6
+expect bind look B
+expect bind fire SPACE
+expect param pilot invertPitch 1
+expect param camera startView 0
+quit

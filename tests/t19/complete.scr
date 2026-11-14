@@ -1,0 +1,20 @@
+# T19 SORTIE -> MISSION COMPLETE (robot pilot, 1 wave, Easy) -> results -> menu. Long: several minutes.
+# jet.exe -mscript tests\t19\complete.scr
+waitfor screen title 60
+setcfg mission sortieWaves 1
+robot on
+key ok
+key down 3
+expect item DIFFICULTY
+key left
+key up
+expect item SORTIE
+key ok
+waitfor screen flight 40
+waitfor outcome complete 900
+waitfor screen results 10
+wait 1
+shot shots\t19_results_complete_%W.bmp
+key ok
+waitfor screen title 30
+quit

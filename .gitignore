@@ -1,0 +1,32 @@
+# build output
+obj/
+engine/obj/
+*.obj
+*.lib
+*.pdb
+*.ilk
+jet.exe
+jet*.exe
+tools/simh/simh
+tools/simh/*.o
+
+# runtime / test output
+*.log
+last.rpl
+bench.txt
+records.ini
+dlz_cache.tab
+t19_*.ini
+shot.bmp
+Run
+
+# screenshots, bench reports, snapshots, release staging
+shots/
+snap/
+release/
+dist/out/
+
+# Mac
+.DS_Store
+__pycache__/
+*.pyc

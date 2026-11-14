@@ -1,0 +1,2 @@
+# T17: robot sortie with the full 3 waves (param line only; the robot flies)
+0.0 param mission.sortieWaves=3
