@@ -589,7 +589,7 @@ static void t_fire_rules(void)
     u32 ev;
     g_start(2, 0);
     g_place(0, v3(0.0f, 3000.0f, 0.0f), 0.0f, 262.0f);
-    g_place(1, v3(0.0f, 3000.0f, 15000.0f), 180.0f, 262.0f);
+    g_place(1, v3(0.0f, 3000.0f, 25000.0f), 180.0f, 262.0f);   /* beyond the player LRM's active range: MIDCOURSE holds */
     w = weapons_state(0);
     t_check(w->lrm == 16 && w->srm == 40 && w->flares == 40, "stores_player", "lrm=%d srm=%d flares=%d", w->lrm, w->srm, w->flares);
     t_check(weapons_state(1)->lrm == 2 && weapons_state(1)->srm == 2, "stores_enemy_default", "lrm=%d srm=%d",

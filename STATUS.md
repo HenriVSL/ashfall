@@ -189,3 +189,31 @@ Reuses the 3D engine, measurements and tooling of `dev/racer` (Direct3D 6 on sto
   VM: silent install rc=0, uninstall /PURGE rc=0; `-test all` from the installed folder rc=1 (not investigated; dev
   tests likely need files not shipped). Local git repo created with the initial commit (no remote). Not done: exe
   version resource, own installer icon stub, T21 balance/T23 T40 pass, far-terrain detail texture (user undecided).
+- 2026-11-14 (T21b, LRM realism): the player's radar missile (LRM, `[lrm_player]`) now flies a realistic AMRAAM profile
+  from the user's GDD (`aim_120_amraam_simulation_gdd.md`): a two-stage boost->sustain motor (2.5 s + 5.5 s, coast at
+  8 s), a transonic wave-drag peak (`waveDragK`), quadratic lift-induced drag (`inducedK2`), a kinematic loft
+  (`loftDeg`/`loftAltM`, low shots climb into thin air), an earlier active seeker (`activeM` 7 -> 18 km) and a 60 deg
+  gimbal. Enemy `[lrm]` and everyone's `[srm]` are bit-for-bit unchanged (the new knobs default off there). `[lrm_player]`
+  re-tuned to keep the player's ~2x envelope: head Rmax 38.3 -> 40.4 km, Rne 14.0 -> 13.5 km (dlz instant-turn 12.6),
+  tail 17.2 -> 16.4 km, Rmin 0.89 -> 0.95 km. DLZ stays honest by construction (same `missile_step`); `data/dlz.tab`
+  rebuilt, `jet.ini` regenerated. `-test all` rc=0 on the Mac harness; VM build to verify.
+- 2026-11-14: 1.1 built from the user's small changes (dlz/missile/fx/jet.ini): dist/out/ashfall-1.1-setup.exe + ashfall-1.1.zip; VM install/uninstall checked.
+- 2026-11-14 (T21c, LAR/NIRD): from the user's LAR GDD (f_a_18_amraam_lar_avionics_symbology_gdd.md): the launch-zone
+  circle is now the Hornet normalized NIRD (Rmax fixed at 6:00, Rmin at 2:30, caret sweeps the in-LAR arc per GDD 2.3),
+  the ASE steering circle scales with range (tight at Rmax for loft, wide inside Rne; GDD 2.4), a Raero tick (zero-closure
+  max aerodynamic range, GDD 4.2) and an "IN LAR" range cue (GDD 3). Raero is computed live in dlz.cpp (Rmax + target
+  along-LOS velocity x TOF). Enemy LRM/SRM DLZ unchanged. -test all rc=0 on the Mac harness; HUD (hud_wpn.cpp) is
+  render-side and needs the VM build + -hudtest zone/layout verification.
+- 2026-11-14 (1.1, T40 graphics fix): user saw water through the island from a distance on the T40 (ATI Mobility
+  Radeon 9000, 1400x1050x16 High). Cause: no W-buffer on the Radeon -> the engine fell back to a 16-bit Z-buffer over a
+  56 km far plane, and hardware zBias (sea, runway, shadow) grows with distance on a Z-buffer. Fix (engine/rend/r_d3d6.cpp):
+  without W-buffer ask for 24-bit Z (T40 gets 32/stencil) with a fallback to 16 if mixed depths fail; zBias only with the
+  W-buffer (-zbias / -nozbias override). Verified on the T40 with -camat shots (40 km view clean, runway markings clean);
+  VM Voodoo3 path unchanged (W-buffer, 16-bit, zbias on).
+- 2026-11-14 (1.1 integration): user changes T21b (player LRM boost/sustain, wave drag, loft, early seeker) and T21c
+  (normalized NIRD launch-zone gauge, dynamic ASE, Raero, IN LAR) tested; T21d rewrote the -hudtest zone checks for the
+  NIRD semantics and fixed 5 gauge bugs (caret jump near 2x Rmax, IN LAR overlaps -> cockpit y 330.5 / chase 4th readout
+  row, keep-out overflow, IN LAR hysteresis, dot scale without Rne); dlz `[dlz] coastFarM` 6000 (double coast steps
+  vs straight targets beyond 6 km; Rne bit-identical), refresh 1.33 -> 1.14 s, gate 1.4 s. T40 audio: engine loops
+  left-only on the SoundMAX driver -> e_audio re-applies the pan after SetFrequency (-norepan to compare; user to
+  confirm by ear). v1.0 tagged; repo README.md; public GitHub repo HenriVSL/ashfall (user).

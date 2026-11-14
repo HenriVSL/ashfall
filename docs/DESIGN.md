@@ -816,18 +816,20 @@ within 400 m except the TD box.
   towards them, HAFU colour, max 6.
 - Kill: "SPLASH" in large font at the target's last position for 1.5 s; symbol fades.
 
-### 10.6 Weapon symbology (T16)
-- **Launch-zone circle** (cockpit, LRM or SRM selected with a TD): centred on the waterline, radius 66 px
-  (HUD.md: size UNSURE, our choice). Range scale: angle = 360 x R / Rscale clockwise from 12 o'clock, Rscale = the
-  smallest of {2,3,5,8,10,15,20,30,40} NM >= 1.2 x Rmax. Ticks: **Rmax** outward 8 px, **Rne** outward double tick
-  6 px, **Rmin** inward 6 px. **Range pointer** = triangle on the ring pointing inward at the current range (pinned at
-  355 deg and flashing beyond Rscale). Target aspect pointer: short outward line at the target's relative heading
+### 10.6 Weapon symbology (T16, T21c LAR)
+- **Launch-zone circle** (cockpit, LRM or SRM selected with a TD): centred on the waterline, radius 66 px. T21c: the
+  ring is the Hornet **normalized NIRD** (user LAR GDD): **Rmax fixed at 6:00**, **Rmin at 2:30**, **Rne** positioned
+  between them, and the **range caret** sweeps counter-clockwise through the fixed in-LAR arc (GDD 2.3; out of range
+  uses the left semicircle, pinned at 12:00 beyond 2x Rmax). Ticks: **Rmax** outward 8 px, **Rne** outward double tick
+  6 px, **Rmin** inward 6 px, **Raero** (max aerodynamic range) thin outward tick. **Range pointer** = triangle on the
+  ring pointing inward at the current range. Target aspect pointer: short outward line at the target's relative heading
   (`hud.aspectPointer=1`).
 - **Steering dot** (4 px): offset from the circle centre = angle between the nose and the lead direction (towards
-  the predicted intercept point from the solver), scaled so the circle edge = `aseDeg` (LRM 20, SRM 15). Aid only;
-  the solver already accounts for off-boresight launch.
-- **SHOOT** (large font) 14 px above the TD: steady when Rmin < R <= Rmax, **flashing 3 Hz when R <= Rne**; no
-  SHOOT until the solver's first result for this target is ready (<= 0.25 s). **Breakaway X** (60 px) when R < Rmin.
+  the predicted intercept point from the solver). T21c: the edge is **dynamic** (`aseDegLrmMin` -> `aseDegLrm`, GDD 2.4)
+  - tight at Rmax for loft steering, widening inside Rne. Aid only; the solver already accounts for off-boresight launch.
+- **IN LAR** (small font, below the circle) while Rmin < R <= Rmax; **SHOOT** (large font) 14 px above the TD: steady
+  when Rmin < R <= Rmax, **flashing 3 Hz when R <= Rne**; no SHOOT until the solver's first result for this target is
+  ready (<= 0.25 s). **Breakaway X** (60 px) when R < Rmin.
 - **Readouts** right of the circle, small font, x 396: "960 Vc" (y 290), "19.9 RNG" (y 304), third line: before
   launch "23 TOF" (solver's time of flight), after an LRM launch "17ACT" counting down, then "11TTG" once active
   (most recent live missile at this target), SRM "6TTG".
@@ -957,6 +959,8 @@ Definitions (same meaning as the Hornet's ticks, HUD.md 2.1):
   180 + run, beam left, beam right}**, flown at the target's max sustained turn (its flight-model G limit x its AI
   `gUse`) and accelerating to FAST.
 - **Rmin**: smallest range that hits the straight-flying target (arming time + turn ability).
+- **Raero** (T21c, user LAR GDD 4.2): the maximum aerodynamic range = **Rmax at zero target closure**, computed live as
+  `Rmax + (target velocity along the LOS) x TOF`; it is the missile's absolute reach independent of the current aspect.
 Fly-out: the real `missile_step` at dt = 1/30 s with the same phases (lock assumed held), launched along our current
 nose from our current state, the target placed **along the current line of sight** at range R with its current
 velocity (keeps aspect and off-boresight angle), simple target model (straight / turn-at-rate then straight), terrain
@@ -1003,6 +1007,12 @@ Gameplay targets (co-altitude 3000 m, both at NORMAL): **LRM** head-on Rmax 16-2
 Honesty targets (T13, `simh shots`): live shot at 0.97 Rmax vs a straight target hits >= 95 %; at 1.05 Rmax misses
 >= 90 %; at 0.95 Rne vs each escape in E (no flares, no terrain) hits 100 %; vs the Normal AI's full defence (flares
 included) inside 0.9 Rne >= 90 %.
+
+**Player LRM `[lrm_player]` (T21a + T21b):** the player's radar missile has its own parameter set. T21a gave it ~2x the
+enemy LRM's range (user M2 play-test). T21b re-tuned it to a realistic AMRAAM profile (see the user GDD
+`aim_120_amraam_simulation_gdd.md`): a two-stage boost->sustain motor, transonic wave drag, quadratic induced drag, a
+kinematic loft, an early active seeker and a 60 deg gimbal; the enemy `[lrm]` and all `[srm]` keep the arcade model
+unchanged. Envelope (co-alt 3000 m, NORMAL): head Rmax ~40.4 km, Rne ~13.5 km, tail Rmax ~16.4 km, Rmin ~0.95 km.
 
 ---------------------------------------------------------------------------------------------------------------
 

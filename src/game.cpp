@@ -28,7 +28,7 @@ const char *const g_argSwitches[] = {
     "-window", "-fullscreen", "-res", "-bpp", "-preset", "-headless", "-mode", "-diff", "-seed", "-start",
     "-log", "-logfile", "-exitafter", "-shot", "-camat", "-script", "-record", "-replay", "-telemetry", "-test",
     "-bench", "-benchroute", "-aifight", "-hudtest", "-dumpini", "-dev", "-nocap", "-fps", "-nosound", "-nojoy",
-    "-benchview", "-mscript", "-ini"
+    "-benchview", "-mscript", "-ini", "-zbias", "-nozbias", "-norepan"
 };
 const int g_numArgSwitches = E_COUNT(g_argSwitches);
 

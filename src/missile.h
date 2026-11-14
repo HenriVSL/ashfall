@@ -4,6 +4,11 @@
 
    GAME MECHANICS with invented, tunable numbers ([lrm] / [srm], DESIGN 12.7): not real weapon data.
 
+   T21b (LRM realism): the model also supports a realistic AMRAAM-style profile, enabled only for [lrm_player] - a
+   two-stage boost->sustain motor (sustainSec/sustainAcc), a transonic wave-drag peak (waveDragK), quadratic
+   lift-induced drag (inducedK2) and a kinematic loft (loftDeg/loftAltM/loftRangeM). The enemy [lrm] and all [srm]
+   leave these at their defaults (0), reproducing the original single-stage arcade model bit-for-bit.
+
    How a caller flies a missile (weapons.cpp live at dt = 1/120; T13's fly-outs at dt = 1/30, same code):
      missile_launch(&m, type, owner, targetId, pos, dir, V, &aim, flags, losPhase);    once
      every step: fill a TrackView with the TRUTH of the missile's assigned target entity (aircraft or flare):
@@ -54,7 +59,7 @@ enum { MPH_LAUNCH, MPH_MIDCOURSE, MPH_ACTIVE, MPH_TERMINAL, MPH_LOST, MPH_DEAD }
 
 typedef struct MissileParams {
     int type;
-    float dropSec, boostSec, boostAcc, dragK, inducedK, gMax, gRefSpeed, navN;
+    float dropSec, boostSec, boostAcc, sustainSec, sustainAcc, dragK, inducedK, inducedK2, gMax, gRefSpeed, navN;
     /* ---- T12 (DESIGN 12.7 table + the phase knobs of 12.2/12.3) ---- */
     float gimbalDeg;                                /* seeker gimbal (angle nose -> target) */
     float acqConeDeg;                               /* LRM: active search cone; SRM: lock circle at the boresight */
@@ -70,8 +75,10 @@ typedef struct MissileParams {
     float searchSec, searchConeDeg;                 /* SRM without lock: search window + cone after launch */
     float lostSec, memSec;                          /* seeker lost after lostSec; memory flight memSec */
     float losSec;                                   /* terrain LOS check period of the seeker */
-    float loftG;                                    /* LRM midcourse: extra up acceleration (g) while far */
-    float loftRangeM;                               /* ... while the estimated distance > this */
+    float loftDeg;                                  /* LRM midcourse: loft climb angle (deg) while far (0 = off) */
+    float loftRangeM;                               /* ... engaged while the estimated distance > this */
+    float loftAltM;                                 /* ... loft fades to 0 at/above this launch altitude */
+    float waveDragK;                                /* transonic wave-drag peak amplitude (0 = off) */
     int   densityAlt;                               /* 1: rho = exp(-y / 8500) */
     float apnK;                                     /* augmented PN: + apnK x navN/2 x target accel (0 = pure PN) */
 } MissileParams;
@@ -118,10 +125,13 @@ typedef struct Missile {
     float rhoY, rho;                                /* cached air density (refreshed every 20 m of altitude) */
     /* ---- T21a ---- */
     int kind;                                       /* MSLK_* parameter set (missile_launch: from its 'type' argument) */
+    /* ---- T21b (LRM realism pass) ---- */
+    float launchY;                                  /* launch altitude (m): kinematic loft altitude fade */
 } Missile;
 
 void  missile_params(void);                         /* [lrm] [srm] [lrm_player] */
 const MissileParams *missile_params_of(int type);   /* type MSL_* or kind MSLK_* (MSLK_LRM_PLAYER -> [lrm_player]) */
+float missile_burn_end(const MissileParams *mp);    /* dropSec + boostSec + sustainSec (motor end, T21b) */
 void  missile_step(Missile *m, const MissileParams *mp, const TrackView *tgt, const struct Terrain *t, float dt);
 
 /* ---- T12 additions ---- */

@@ -15,13 +15,17 @@
 
 static MissileParams s_mp[MSLK_COUNT];            /* [lrm] [srm] [lrm_player] (T21a) */
 
-#define MP_PARAMS(S, I, DROP, BSEC, BACC, DRAG, IND, GMAX, GREF, NAV, GIM, ACQ, ACT, SEEK, LTAIL, LHEAD, TRK, ARM, \
-                  FUZE, MAXS, MINV, LAUNCH) \
+#define MP_PARAMS(S, I, DROP, BSEC, BACC, SUSEC, SUACC, DRAG, WAVE, IND, INDK2, GMAX, GREF, NAV, GIM, ACQ, ACT, SEEK, \
+                  LTAIL, LHEAD, TRK, ARM, FUZE, MAXS, MINV, LAUNCH) \
     { S, "dropSec", P_FLOAT, &s_mp[I].dropSec, DROP, 0.0f, 2.0f, "s: free drop off the rail before the motor lights" }, \
-    { S, "boostSec", P_FLOAT, &s_mp[I].boostSec, BSEC, 0.0f, 20.0f, "s: motor burn time" }, \
-    { S, "boostAcc", P_FLOAT, &s_mp[I].boostAcc, BACC, 0.0f, 2000.0f, "m/s^2: motor acceleration" }, \
-    { S, "dragK", P_FLOAT, &s_mp[I].dragK, DRAG, 0.0f, 0.01f, "1/m: drag deceleration = dragK x rho x V^2" }, \
+    { S, "boostSec", P_FLOAT, &s_mp[I].boostSec, BSEC, 0.0f, 20.0f, "s: motor boost burn time" }, \
+    { S, "boostAcc", P_FLOAT, &s_mp[I].boostAcc, BACC, 0.0f, 2000.0f, "m/s^2: motor boost acceleration" }, \
+    { S, "sustainSec", P_FLOAT, &s_mp[I].sustainSec, SUSEC, 0.0f, 20.0f, "s: motor sustain burn after the boost (0 = single-stage)" }, \
+    { S, "sustainAcc", P_FLOAT, &s_mp[I].sustainAcc, SUACC, 0.0f, 2000.0f, "m/s^2: motor sustain acceleration" }, \
+    { S, "dragK", P_FLOAT, &s_mp[I].dragK, DRAG, 0.0f, 0.01f, "1/m: drag deceleration = dragK x rho x V^2 x cd(Mach)" }, \
+    { S, "waveDragK", P_FLOAT, &s_mp[I].waveDragK, WAVE, 0.0f, 3.0f, "transonic wave-drag peak multiplier (0 = off)" }, \
     { S, "inducedK", P_FLOAT, &s_mp[I].inducedK, IND, 0.0f, 1.0f, "deceleration per m/s^2 of lateral acceleration" }, \
+    { S, "inducedK2", P_FLOAT, &s_mp[I].inducedK2, INDK2, 0.0f, 0.01f, "deceleration per (m/s^2)^2 of lateral acceleration (quadratic, 0 = off)" }, \
     { S, "gMax", P_FLOAT, &s_mp[I].gMax, GMAX, 1.0f, 100.0f, "g: lateral acceleration limit at/above gRefSpeed" }, \
     { S, "gRefSpeed", P_FLOAT, &s_mp[I].gRefSpeed, GREF, 50.0f, 2000.0f, "m/s: below this the limit falls with (V/gRefSpeed)^2" }, \
     { S, "navN", P_FLOAT, &s_mp[I].navN, NAV, 1.0f, 10.0f, "proportional navigation constant" }, \
@@ -49,28 +53,38 @@ static MissileParams s_mp[MSLK_COUNT];            /* [lrm] [srm] [lrm_player] (T
     { S, "densityAlt", P_BOOL, &s_mp[I].densityAlt, "1", 0.0f, 1.0f, "1 = drag x exp(-alt/8500)" }, \
     { S, "apnK", P_FLOAT, &s_mp[I].apnK, "1.0", 0.0f, 3.0f, "augmented PN: x navN/2 x target acceleration (0 = pure PN)" }
 
-/* [lrm_player] tuned values (T21a, `simh test missile table`): vs [lrm] a stronger motor (boostAcc 200 -> 400 m/s^2,
-   same 3 s burn, so fx trails/glows keyed on boostSec still match), less drag (0.9e-4 -> 0.7e-4) and a longer life
-   (maxSec 45 -> 60). Co-altitude 3000 m, both NORMAL: head Rmax 19.4 -> 38.3 km, Rne 7.2 -> 14.0, tail Rmax 6.8 ->
-   17.2, beam 10.5 -> 24.0, Rmin 0.76 -> 0.89 km: the whole envelope ~2x, not only the head-on coast. */
-#define T21A_LRMP_BACC "400"
-#define T21A_LRMP_DRAG "0.00007"
-#define T21A_LRMP_MAXS "60"
-#define T21A_LRMP_MINV "390"
+/* [lrm_player] tuned values (T21b realism pass, `simh test missile table`): the player's radar missile flies a
+   realistic AMRAAM profile (GDD aim_120_amraam_simulation_gdd.md): a two-stage boost->sustain motor, a transonic
+   wave-drag peak, quadratic (lift-induced) drag, a kinematic loft, an earlier active seeker and a 60 deg gimbal.
+   It still delivers the player's ~2x envelope of T21a (user M2 play-test), now via loft + energy management rather
+   than one big flat boost. Enemy [lrm] and everyone's [srm] are unchanged (sustainSec/waveDragK/inducedK2/loftDeg = 0
+   reproduce the T12 model bit-for-bit). */
+#define T21B_LRMP_BSEC   "2.5"
+#define T21B_LRMP_BACC   "300"
+#define T21B_LRMP_SUSEC  "5.5"
+#define T21B_LRMP_SUACC  "74"
+#define T21B_LRMP_DRAG   "0.00007"
+#define T21B_LRMP_WAVE   "0.45"
+#define T21B_LRMP_IND2   "0.0001"
+#define T21B_LRMP_MAXS   "60"
+#define T21B_LRMP_MINV   "390"
 
 static const Param s_tab[] = {
-    MP_PARAMS("lrm", 0, "0.15", "3.0", "200", "0.00009", "0.05", "30", "500", "4.0", "50", "25", "7000", "9000",
-              "8000", "5000", "1.5", "1.3", "25", "45", "390", "0.3"),
-    { "lrm", "loftG", P_FLOAT, &s_mp[0].loftG, "0", 0.0f, 10.0f, "g: extra climb acceleration in midcourse while far (0 = off)" },
-    { "lrm", "loftRangeM", P_FLOAT, &s_mp[0].loftRangeM, "12000", 0.0f, 80000.0f, "m: loft only while the estimated distance > this" },
-    MP_PARAMS("srm", 1, "0.10", "2.0", "250", "0.00014", "0.3", "40", "450", "4.0", "40", "3", "0", "0",
-              "8000", "5000", "1.05", "0.65", "20", "20", "470", "0.1"),
-    /* T21a: the PLAYER's radar missile (user M2 play-test 2026-11-14: "the radar guided should go double distance";
-       enemy missiles unchanged). Same model and phases as [lrm]; T21A_LRMP_* below are the tuned differences. */
-    MP_PARAMS("lrm_player", 2, "0.15", "3.0", T21A_LRMP_BACC, T21A_LRMP_DRAG, "0.05", "30", "500", "4.0", "50", "25", "7000",
-              "9000", "8000", "5000", "1.5", "1.3", "25", T21A_LRMP_MAXS, T21A_LRMP_MINV, "0.3"),
-    { "lrm_player", "loftG", P_FLOAT, &s_mp[2].loftG, "0", 0.0f, 10.0f, "g: extra climb acceleration in midcourse while far (0 = off)" },
-    { "lrm_player", "loftRangeM", P_FLOAT, &s_mp[2].loftRangeM, "12000", 0.0f, 80000.0f, "m: loft only while the estimated distance > this" },
+    MP_PARAMS("lrm", 0, "0.15", "3.0", "200", "0", "0", "0.00009", "0", "0.05", "0", "30", "500", "4.0", "50", "25", "7000",
+              "9000", "8000", "5000", "1.5", "1.3", "25", "45", "390", "0.3"),
+    { "lrm", "loftDeg", P_FLOAT, &s_mp[0].loftDeg, "0", 0.0f, 40.0f, "deg: midcourse loft climb angle (0 = off)" },
+    { "lrm", "loftRangeM", P_FLOAT, &s_mp[0].loftRangeM, "15000", 0.0f, 80000.0f, "m: loft engaged while the estimated distance > this" },
+    { "lrm", "loftAltM", P_FLOAT, &s_mp[0].loftAltM, "12000", 0.0f, 30000.0f, "m: loft fades to 0 at/above this launch altitude" },
+    MP_PARAMS("srm", 1, "0.10", "2.0", "250", "0", "0", "0.00014", "0", "0.3", "0", "40", "450", "4.0", "40", "3", "0",
+              "0", "8000", "5000", "1.05", "0.65", "20", "20", "470", "0.1"),
+    /* T21a+T21b: the PLAYER's radar missile (user M2 play-test 2026-11-14: "the radar guided should go double distance";
+       enemy missiles unchanged). Same model and phases as [lrm]; T21B_LRMP_* below are the tuned realism differences. */
+    MP_PARAMS("lrm_player", 2, "0.15", T21B_LRMP_BSEC, T21B_LRMP_BACC, T21B_LRMP_SUSEC, T21B_LRMP_SUACC, T21B_LRMP_DRAG,
+              T21B_LRMP_WAVE, "0", T21B_LRMP_IND2, "30", "500", "4.0", "60", "25", "18000", "22000", "8000", "5000",
+              "1.5", "1.4", "25", T21B_LRMP_MAXS, T21B_LRMP_MINV, "0.3"),
+    { "lrm_player", "loftDeg", P_FLOAT, &s_mp[2].loftDeg, "16", 0.0f, 40.0f, "deg: midcourse loft climb angle (0 = off)" },
+    { "lrm_player", "loftRangeM", P_FLOAT, &s_mp[2].loftRangeM, "15000", 0.0f, 80000.0f, "m: loft engaged while the estimated distance > this" },
+    { "lrm_player", "loftAltM", P_FLOAT, &s_mp[2].loftAltM, "12000", 0.0f, 30000.0f, "m: loft fades to 0 at/above this launch altitude" },
 };
 
 void missile_params(void)
@@ -79,13 +93,19 @@ void missile_params(void)
     s_mp[1].type = MSL_SRM;
     s_mp[2].type = MSL_LRM;
     params_add(s_tab, E_COUNT(s_tab));
-    s_mp[1].loftG = 0.0f;
+    s_mp[1].loftDeg = 0.0f;
     s_mp[1].loftRangeM = 0.0f;
+    s_mp[1].loftAltM = 0.0f;
 }
 
 const MissileParams *missile_params_of(int type)
 {
     return &s_mp[type == MSL_SRM ? 1 : type == MSLK_LRM_PLAYER ? 2 : 0];
+}
+
+float missile_burn_end(const MissileParams *mp)
+{
+    return mp->dropSec + mp->boostSec + mp->sustainSec;
 }
 
 int missile_kind(int type, int player) { return type == MSL_LRM && player ? MSLK_LRM_PLAYER : type; }
@@ -233,6 +253,7 @@ void missile_launch(Missile *m, int type, int owner, int target, Vec3 pos, Vec3 
     m->endPos = pos;
     m->dir = v3_norm(dir);
     m->V = V;
+    m->launchY = pos.y;
     m->phase = MPH_LAUNCH;
     m->flags = flags;
     m->result = MRES_NONE;
@@ -305,6 +326,9 @@ void missile_estimates(const Missile *m, const MissileParams *mp, float *act, fl
     vEst = m->V;
     bLeft = mp->dropSec + mp->boostSec - m->age;
     if (bLeft > 0.0f) vEst += 0.5f * mp->boostAcc * (bLeft < mp->boostSec ? bLeft : mp->boostSec);
+    bLeft = mp->dropSec + mp->boostSec + mp->sustainSec - m->age;
+    if (bLeft > 0.0f && mp->sustainSec > 0.0f)
+        vEst += 0.5f * mp->sustainAcc * (bLeft < mp->sustainSec ? bLeft : mp->sustainSec);
     vm = v3_scale(m->dir, vEst);
     closing = -v3_dot(r, v3_sub(m->aimVel, vm)) / dist;
     if (closing < 30.0f) return;
@@ -414,6 +438,16 @@ void missile_step(Missile *m, const MissileParams *mp, const TrackView *tgt, con
         if (rr > 1.0f) {
             Vec3 cr;
             float k;
+            if (m->phase == MPH_MIDCOURSE && m->type == MSL_LRM && !(m->flags & MF_MADDOG) &&
+                mp->loftDeg > 0.0f && rr > mp->loftRangeM * mp->loftRangeM) {
+                /* kinematic loft: elevate the midcourse aim point so pure PN climbs into thin air, then dives home
+                   as the offset shrinks toward loftRangeM (GDD 5.1) */
+                float ldist = fsqrt(rr), altF = 1.0f - m->launchY / mp->loftAltM, pitch;
+                if (altF < 0.0f) altF = 0.0f; else if (altF > 1.0f) altF = 1.0f;
+                pitch = mp->loftDeg * altF;
+                r.y += (float)tan(E_DEG2RAD(pitch)) * (ldist - mp->loftRangeM);
+                rr = VDOT(r, r);
+            }
             VSCALE(vm, m->dir, m->V);
             VSUB(vr, m->aimVel, vm);
             VCROSS(cr, r, vr);
@@ -424,11 +458,6 @@ void missile_step(Missile *m, const MissileParams *mp, const TrackView *tgt, con
                 k = 0.5f * mp->navN * mp->apnK;
                 VMADD(up, m->aimAcc, r, -VDOT(m->aimAcc, r) / rr);
                 VMADD(a, a, up, k);
-            }
-            if (m->phase == MPH_MIDCOURSE && mp->loftG > 0.0f && rr > mp->loftRangeM * mp->loftRangeM) {
-                up.x = -m->dir.x * m->dir.y; up.y = 1.0f - m->dir.y * m->dir.y; up.z = -m->dir.z * m->dir.y;
-                k = VDOT(up, up);
-                if (k > 1e-4f) { k = mp->loftG * GRAV / fsqrt(k); VMADD(a, a, up, k); }
             }
         }
     }
@@ -445,13 +474,18 @@ void missile_step(Missile *m, const MissileParams *mp, const TrackView *tgt, con
     m->aLimit = aMax;
 
     /* ---- speed, direction, position */
-    /* motor: the exact share of this step inside [dropSec, dropSec + boostSec] (same impulse at any dt) */
+    /* motor: boost [dropSec, dropSec+boostSec] then sustain [dropSec+boostSec, dropSec+boostSec+sustainSec]
+       (the exact share of each interval inside this step: same impulse at any dt; sustainSec 0 = single stage) */
     {
-        float b0 = mp->dropSec, b1 = mp->dropSec + mp->boostSec, s0 = m->age - dt, s1 = m->age, ov;
-        if (s0 < b0) s0 = b0;
-        if (s1 > b1) s1 = b1;
-        ov = s1 - s0;
-        thrust = ov > 0.0f ? mp->boostAcc * ov / dt : 0.0f;
+        float b0 = mp->dropSec, b1 = mp->dropSec + mp->boostSec, c1 = b1 + mp->sustainSec, s0, s1, ov;
+        thrust = 0.0f;
+        s0 = m->age - dt; if (s0 < b0) s0 = b0;
+        s1 = m->age;      if (s1 > b1) s1 = b1;
+        ov = s1 - s0;     if (ov > 0.0f) thrust += mp->boostAcc * ov;
+        s0 = m->age - dt; if (s0 < b1) s0 = b1;
+        s1 = m->age;      if (s1 > c1) s1 = c1;
+        ov = s1 - s0;     if (ov > 0.0f) thrust += mp->sustainAcc * ov;
+        thrust /= dt;
     }
     rho = 1.0f;
     if (mp->densityAlt) {                           /* cached per missile, refreshed every 20 m of altitude */
@@ -464,10 +498,20 @@ void missile_step(Missile *m, const MissileParams *mp, const TrackView *tgt, con
     }
     {
         /* midpoint (RK2) speed: fly-outs at dt 1/30 track live missiles at 1/120 */
-        float V0 = m->V, base = thrust - mp->inducedK * alen - GRAV * m->dir.y, Vm, V1;
-        Vm = V0 + 0.5f * dt * (base - mp->dragK * rho * V0 * V0);
+        float V0 = m->V, cd = 1.0f, base, Vm, V1;
+        if (mp->waveDragK > 0.0f) {                 /* transonic wave-drag peak (GDD 4.2): bump around M 0.8-2.8 */
+            float sos = 340.3f - 0.004f * (m->pos.y < 11000.0f ? m->pos.y : 11000.0f), M = V0 / sos, b;
+            if (M < 0.80f) b = 0.0f;
+            else if (M < 1.05f) b = (M - 0.80f) * 4.0f;                       /* 0 -> 1 */
+            else if (M < 1.60f) b = 1.0f - 0.85f * (M - 1.05f) / 0.55f;       /* 1 -> 0.15 */
+            else if (M < 2.80f) b = 0.15f - 0.15f * (M - 1.60f) / 1.20f;      /* 0.15 -> 0 */
+            else b = 0.0f;
+            cd = 1.0f + mp->waveDragK * b;
+        }
+        base = thrust - mp->inducedK * alen - mp->inducedK2 * alen * alen - GRAV * m->dir.y;
+        Vm = V0 + 0.5f * dt * (base - mp->dragK * rho * cd * V0 * V0);
         if (Vm < 1.0f) Vm = 1.0f;
-        V1 = V0 + dt * (base - mp->dragK * rho * Vm * Vm);
+        V1 = V0 + dt * (base - mp->dragK * rho * cd * Vm * Vm);
         if (V1 < 1.0f) V1 = 1.0f;
         m->V = V1;
         {
@@ -517,7 +561,7 @@ void missile_step(Missile *m, const MissileParams *mp, const TrackView *tgt, con
         VSUB(d1, tgt->pos, m->pos);
         dist = fsqrt(VDOT(d1, d1));
         if (dist < m->minDist) m->minDist = dist;
-        if ((m->flags & MF_ARMED) && m->age > mp->dropSec + mp->boostSec && dist > m->lastDist) {
+        if ((m->flags & MF_ARMED) && m->age > missile_burn_end(mp) && dist > m->lastDist) {
             m->openT += dt;
             if (m->openT >= 0.5f) m->flags |= MF_MISSED;
         } else {
@@ -526,7 +570,7 @@ void missile_step(Missile *m, const MissileParams *mp, const TrackView *tgt, con
         m->lastDist = dist;
     }
     if (m->result == MRES_NONE &&
-        (m->age > mp->maxSec || (m->V < mp->minSpeed && m->age > mp->dropSec + mp->boostSec))) {
+        (m->age > mp->maxSec || (m->V < mp->minSpeed && m->age > missile_burn_end(mp)))) {
         m->result = MRES_EXPIRED;
         m->endPos = m->pos;
     }

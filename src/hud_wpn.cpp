@@ -49,6 +49,9 @@
                                                        triangle sits in between) */
 #define SHOOT_LIM_CP 148.0f                         /* SHOOT top limit, cockpit: below the heading caret */
 #define SHOOT_LIM_CH 48.0f                          /*                  chase: below the small heading tape */
+#define LAR_Y_CP    330.5f                          /* T21c "IN LAR" cap top, cockpit (centred x 320): between LOCK's home
+                                                       (318, bottom ~328) and the bank pointer (top ~343 at banks 0-10);
+                                                       T21d: 334 touched the pointer. Chase: 4th readout row */
 
 enum { TL_NONE = 0, TL_TOF, TL_ACT, TL_TTG };       /* third readout line */
 
@@ -56,6 +59,7 @@ static const float s_scaleNm[9] = { 2.0f, 3.0f, 5.0f, 8.0f, 10.0f, 15.0f, 20.0f,
 
 /* ================================================================ params ([hud] wpn*) */
 static float s_band = 0.03f, s_onSec = 0.2f, s_latchSec = 0.3f, s_aseDegL = 20.0f, s_aseDegS = 15.0f;
+static float s_aseDegLMin = 10.0f, s_aseDegSMin = 8.0f;
 static float s_ringR = 160.0f, s_threatAlpha = 0.6f;
 static int   s_aspect = 1, s_maxThreats = 3, s_ringTexOn = 1, s_chaseAse = 1;
 static char  s_nameL[PARAM_STR] = "AIM-120", s_nameS[PARAM_STR] = "AIM-9";
@@ -64,8 +68,10 @@ static const Param s_tab[] = {
     { "hud", "wpnShootBand", P_FLOAT, &s_band, "0.03", 0, 0.2f, "SHOOT / flashing / breakaway hysteresis: they enter only this fraction inside Rmax / Rne / Rmin and leave at the exact value" },
     { "hud", "wpnShootOnSec", P_FLOAT, &s_onSec, "0.2", 0, 2, "SHOOT (steady, flashing) appears after its zone condition held this long (s); it leaves at once" },
     { "hud", "wpnLatchSec", P_FLOAT, &s_latchSec, "0.3", 0, 2, "minimum display time of the seeker lock, growl, LOCK, breakaway X, TOF (s)" },
-    { "hud", "aseDegLrm", P_FLOAT, &s_aseDegL, "20", 2, 60, "steering dot: the circle edge = this angle between the nose and the lead direction (LRM, deg)" },
-    { "hud", "aseDegSrm", P_FLOAT, &s_aseDegS, "15", 2, 60, "steering dot: the circle edge = this angle between the nose and the lead direction (SRM, deg)" },
+    { "hud", "aseDegLrm", P_FLOAT, &s_aseDegL, "20", 2, 60, "steering dot: the circle edge = this angle between the nose and the lead direction inside Rne (LRM, deg)" },
+    { "hud", "aseDegLrmMin", P_FLOAT, &s_aseDegLMin, "10", 1, 60, "steering dot at Rmax (tight for loft steering, deg); widens to aseDegLrm inside Rne" },
+    { "hud", "aseDegSrm", P_FLOAT, &s_aseDegS, "15", 2, 60, "steering dot: the circle edge = this angle between the nose and the lead direction inside Rne (SRM, deg)" },
+    { "hud", "aseDegSrmMin", P_FLOAT, &s_aseDegSMin, "8", 1, 60, "steering dot at Rmax (tight, deg); widens to aseDegSrm inside Rne" },
     { "hud", "aspectPointer", P_BOOL, &s_aspect, "1", 0, 1, "launch-zone circle: target aspect pointer (target heading relative to ours, 12 o'clock = same)" },
     { "hud", "wpnThreatRing", P_FLOAT, &s_ringR, "160", 80, 230, "threat arrows: tip radius around the screen centre (virtual units; 160 clears the boxes, bank scale, weapon line and minimap)" },
     { "hud", "wpnThreatMax", P_INT, &s_maxThreats, "3", 0, 8, "max threat arrows (nearest first)" },
@@ -267,6 +273,7 @@ typedef struct WpnSt {
     int xOn, xPend; float xPendT;
     int scaleInit, scaleIdx, scaleChanges; float scaleT;
     int pinned;
+    int inLar, larPend; float larPendT; u32 larPendC;  /* T21c/T21d "IN LAR" cue (SHOOT's entry rule, leaves at once) */
     int shootBelow, barLeft, sideInit;
     /* readouts */
     int rngFeet;
@@ -299,10 +306,12 @@ static WpnSt s_st;
 /* debug record (tests) */
 typedef struct WpnDbg {
     int zone, circle, ticks, raw, rawNe;
-    float scaleNm, rmaxAng, rneAng, rminAng, ptrAng; int ptrPinned, ptrDrawn;
+    float scaleNm, rmaxAng, rneAng, rminAng, raeroAng, ptrAng; int ptrPinned, ptrDrawn;
     float aspectAng; int aspect;
     int dot, dotX, dotY; float dotFx, dotFy;
     int shoot, shootDrawn, shootX, shootY, shootBelow;
+    int inLar, inLarRect[4];                        /* T21c: "IN LAR" range cue drawn (+ its px rect) */
+    float aseDeg;                                   /* T21c: steering-dot circle edge this frame (deg) */
     int brk, third; char vc[12], rng[12], thirdStr[16];
     int seek, seekX, seekY, seekLock, seekFlash, seekDrawn;
     int visual, msl, mslDrawn, lock, arrows; float arrowX[8], arrowY[8];
@@ -347,6 +356,7 @@ static void zone_reset(void)
     s_st.shoot = 0; s_st.onPend = s_st.nePend = 0;
     s_st.xOn = s_st.xPend = 0;
     s_st.scaleInit = 0; s_st.pinned = 0;
+    s_st.inLar = s_st.larPend = 0;
     s_st.sideInit = 0;
     s_st.rngFeet = 0;
     memset(&s_st.vc, 0, sizeof(SNum)); memset(&s_st.rng, 0, sizeof(SNum)); memset(&s_st.tof, 0, sizeof(SNum));
@@ -410,11 +420,20 @@ static void decide_zone(float t, const WpnIn *in, int zone)
             }
         }
     }
+    /* T21c/T21d "IN LAR" (GDD 3): Rmin < R <= Rmax of the published zone. Leaves at once (never shown outside the
+       LAR); enters like SHOOT: the condition held wpnShootOnSec AND a live publication since it started, so the next
+       publication cannot cut a fresh cue short (no flicker on a noisy boundary) */
+    if (zone && d->ready && d->rmax > 0.0f && R <= d->rmax && R > d->rmin) {
+        if (!s_st.inLar) {
+            if (!s_st.larPend) { s_st.larPend = 1; s_st.larPendT = t; s_st.larPendC = d->cycles; }
+            if (t - s_st.larPendT >= s_onSec - 1e-4f && d->cycles != s_st.larPendC) { s_st.inLar = 1; s_st.larPend = 0; }
+        }
+    } else { s_st.inLar = 0; s_st.larPend = 0; }
     if (!zone) return;
     /* range scale: up when 1.2 Rmax passes 1.08 x the scale (at once beyond 1.15), down below 0.92 x the next lower
        one; 1 s between changes */
     {
-        float need = d->rmax > 0.0f ? 1.2f * d->rmax / NM2M : 0.0f, sc;
+        float need = d->rmax > 0.0f ? 1.2f * d->rmax / NM2M : 0.0f;
         int i = s_st.scaleIdx;
         if (!s_st.scaleInit) {
             s_st.scaleIdx = scale_pick(need > 0.0f ? need : R / NM2M);
@@ -427,9 +446,12 @@ static void decide_zone(float t, const WpnIn *in, int zone)
                 s_st.scaleIdx = i - 1; s_st.scaleT = t; s_st.scaleChanges++;
             }
         }
-        sc = s_scaleNm[s_st.scaleIdx] * NM2M;
-        if (!s_st.pinned && R > sc) s_st.pinned = 1;
-        else if (s_st.pinned && R < 0.98f * sc) s_st.pinned = 0;
+        /* T21c NIRD: pin the caret at 12:00 once beyond 2x Rmax (the out-of-range arc ends there) */
+        if (d->ready && d->rmax > 0.0f) {
+            float pinR = 2.0f * d->rmax;
+            if (!s_st.pinned && R > pinR) s_st.pinned = 1;
+            else if (s_st.pinned && R < 0.98f * pinR) s_st.pinned = 0;
+        } else s_st.pinned = 0;
     }
 }
 
@@ -538,10 +560,39 @@ static void draw_dashed_circle(float cx, float cy, float Rpx, u32 col)
     }
 }
 
-static float ang_of(float rM, float scM)
+/* NIRD caret/tick angle (LAR GDD 2.3): normalized clock angle (rad, 0 = 12:00, clockwise). Rmax is fixed at 6:00
+   (180 deg), Rmin at 2:30 (75 deg); the caret sweeps counter-clockwise as range falls. Out of range (> Rmax) uses the
+   left semicircle 180..360 deg (pinned at 12:00 beyond 2x Rmax). */
+static float nird_ang(float R, float rmax, float rmin)
 {
-    float a = 2.0f * E_PI * rM / scM, lim = E_DEG2RAD(355.0f);
-    return a > lim ? lim : (a < 0.0f ? 0.0f : a);
+    float a;
+    if (rmax <= 1.0f) return 0.0f;
+    if (R > rmax) {
+        a = 180.0f + 180.0f * (R - rmax) / rmax;      /* 180..355 deg (out of range, left semicircle) */
+        if (a > 355.0f) a = 355.0f;                    /* T21d: = the pin angle: never past it (no 360 -> 355 jump back
+                                                          when the pin engages at 2x Rmax, never at 12:00 = R 0) */
+    } else if (rmin > 0.0f && R >= rmin && rmax - rmin > 1.0f) {
+        a = 75.0f + 105.0f * (R - rmin) / (rmax - rmin);   /* 75..180 deg (in LAR) */
+    } else if (rmin > 0.0f) {
+        a = 75.0f * (R / rmin);                        /* 0..75 deg (inside Rmin) */
+    } else {
+        a = 180.0f;                                    /* no Rmin yet: pin at Rmax */
+    }
+    return E_DEG2RAD(a);
+}
+
+/* T21c dynamic ASE (LAR GDD 2.4): the steering-dot circle edge (deg) = aseDegMin at Rmax (tight, loft steering) ->
+   aseDeg (wide) at Rne, linear in between. T21d: without an Rne (no no-escape zone) it widens towards Rmin instead of
+   staying wide all the way out to Rmax */
+static float ase_deg(const WpnIn *in)
+{
+    const DlzView *d = &in->dlz;
+    float aseMax = in->sel == MSL_SRM ? s_aseDegS : s_aseDegL, aseMin = in->sel == MSL_SRM ? s_aseDegSMin : s_aseDegLMin;
+    float inner = d->rne > 0.0f ? d->rne : d->rmin, f;
+    if (!d->ready || inner <= 0.0f || d->rmax - inner < 1.0f) return aseMax;
+    f = (d->rmax - d->range) / (d->rmax - inner);
+    f = E_CLAMP(f, 0.0f, 1.0f);
+    return aseMin + (aseMax - aseMin) * f;
 }
 
 /* camera basis from the 3D frame's view matrix (columns = right, up, forward in world) */
@@ -658,7 +709,7 @@ static void draw_ase(const HudState *hs, const WpnIn *in, float cx, float cy, in
     float k = hg_k(), Rpx = lay->aseR * k;
     float Rlim = (lay->aseR + lay->aseOut) * k, st = (float)hg_stroke(), o = (float)hg_shadow_off();
     {
-        float sc = s_scaleNm[s_st.scaleIdx] * NM2M, a;
+        float a;
         s_dbg.aseCx = e_ftoi(cx); s_dbg.aseCy = e_ftoi(cy);
         s_dbg.circle = 1;
         s_dbg.scaleNm = s_scaleNm[s_st.scaleIdx];
@@ -666,25 +717,30 @@ static void draw_ase(const HudState *hs, const WpnIn *in, float cx, float cy, in
         if (d->ready && d->rmax > 0.0f) {                        /* ticks once the first live Rmax is out */
             float tickOut = Rlim - o - 1.0f, neOut = Rpx + 0.75f * lay->aseOut * k, da = 1.5f * st / Rpx;
             s_dbg.ticks = 1;
-            a = ang_of(d->rmax, sc); s_dbg.rmaxAng = E_RAD2DEG(a);
+            a = nird_ang(d->rmax, d->rmax, d->rmin); s_dbg.rmaxAng = E_RAD2DEG(a);
             radial(cx, cy, a, Rpx, tickOut, 1.0f, col);
             if (d->rne > 0.0f) {
-                a = ang_of(d->rne, sc); s_dbg.rneAng = E_RAD2DEG(a);
+                a = nird_ang(d->rne, d->rmax, d->rmin); s_dbg.rneAng = E_RAD2DEG(a);
                 radial(cx, cy, a - da, Rpx, neOut, 1.0f, col);
                 radial(cx, cy, a + da, Rpx, neOut, 1.0f, col);
             }
             if (d->rmin > 0.0f) {
-                a = ang_of(d->rmin, sc); s_dbg.rminAng = E_RAD2DEG(a);
+                a = nird_ang(d->rmin, d->rmax, d->rmin); s_dbg.rminAng = E_RAD2DEG(a);
                 radial(cx, cy, a, Rpx, Rpx - 6.0f * k, 1.0f, col);
             }
+            if (d->raero > 0.0f) {                       /* T21c: Raero (max aerodynamic range, LAR GDD 4.2) */
+                a = nird_ang(d->raero, d->rmax, d->rmin); s_dbg.raeroAng = E_RAD2DEG(a);
+                radial(cx, cy, a, Rpx, Rpx + 0.45f * lay->aseOut * k, 0.6f, col);
+            }
         }
-        {                                                        /* range pointer: outside the ring, pointing in */
+        {                                                        /* range pointer (NIRD caret): outside the ring, pointing in */
             float hw = (float)s_ptrHw + o, body = (float)s_ptrOy + o, lim2 = Rlim * Rlim - hw * hw;
             float tipR = Rpx + st * 0.5f, tipMax = (lim2 > 0.0f ? (float)sqrt(lim2) : Rlim) - body;
             if (tipR > tipMax) tipR = tipMax;
-            a = s_st.pinned ? E_DEG2RAD(355.0f) : ang_of(d->range, sc);
+            a = d->ready ? nird_ang(d->range, d->rmax, d->rmin) : E_DEG2RAD(355.0f);
+            if (s_st.pinned) a = E_DEG2RAD(355.0f);
             s_dbg.ptrAng = E_RAD2DEG(a); s_dbg.ptrPinned = s_st.pinned;
-            if (!s_st.pinned || flash_on(hs->time, 3.0f)) {
+            if (d->ready && (!s_st.pinned || flash_on(hs->time, 3.0f))) {
                 hg_sprite_rot(s_sprPtr, cx + (float)sin(a) * tipR, cy - (float)cos(a) * tipR, a, col);
                 s_dbg.ptrDrawn = 1;
             }
@@ -713,7 +769,8 @@ static void draw_ase(const HudState *hs, const WpnIn *in, float cx, float cy, in
                 n = (float)sqrt(bx * bx + by * by);
                 ang = E_RAD2DEG((float)atan2(n, bz));
             }
-            frac = ang / (in->sel == MSL_SRM ? s_aseDegS : s_aseDegL);
+            s_dbg.aseDeg = ase_deg(in);                         /* T21c dynamic ASE (LAR GDD 2.4) */
+            frac = ang / E_MAXF(s_dbg.aseDeg, 0.1f);
             if (frac > 1.0f) frac = 1.0f;
             fx = cx; fy = cy;
             if (n > 1e-6f) { fx = cx + bx / n * frac * Rpx; fy = cy - by / n * frac * Rpx; }
@@ -731,6 +788,14 @@ static void draw_ase(const HudState *hs, const WpnIn *in, float cx, float cy, in
     }
 }
 
+/* T21d: the "IN LAR" text rect (px): cockpit centred at (320, LAR_Y_CP); chase the 4th readout row (left at RD_X) */
+static void lar_rect(const HudState *hs, int *r)
+{
+    int w = hg_text_w(HF_SMALL, "IN LAR"), o = hg_shadow_off(), y = hs->view == VIEW_CHASE ? s_st.chRdY + 3 * hg_px(RD_DY) : hg_px(LAR_Y_CP);
+    r[0] = hs->view == VIEW_CHASE ? hg_px(RD_X) : hg_px(320.0f) - w / 2;
+    r[1] = y; r[2] = r[0] + w + o; r[3] = y + hg_cap(HF_SMALL) + o;
+}
+
 static void draw_cockpit(const HudState *hs, const WpnIn *in, int zone, u32 col)
 {
     const HudLayout *lay = hud_layout();
@@ -743,6 +808,7 @@ static void draw_cockpit(const HudState *hs, const WpnIn *in, int zone, u32 col)
     }
     draw_seeker(hs, in, col);
     draw_shoot(hs, in, zone, col);
+    if (zone && s_st.inLar) { hg_text(hg_px(320.0f), hg_px(LAR_Y_CP), HF_SMALL, col, 1, "IN LAR"); lar_rect(hs, s_dbg.inLarRect); s_dbg.inLar = 1; }
     weapon_strings(in);
     hg_text(hg_px(320.0f), hg_px(WPN_Y), HF_SMALL, col, 1, s_st.wl);
 }
@@ -789,6 +855,10 @@ static void draw_chase(const HudState *hs, const WpnIn *in, int zone, u32 col)
             float ymax = y1 - E_CLAMP(d->rmax / sc, 0.0f, 1.0f) * (y1 - y0), ymin = y1 - E_CLAMP(d->rmin / sc, 0.0f, 1.0f) * (y1 - y0);
             hg_line_ext(bx + dir * 3.0f * k, ymin, bx + dir * 3.0f * k, ymax, 0.0f, col);        /* the zone */
             hg_line_ext(bx, ymax, bx + dir * tick, ymax, 0.0f, col);                              /* Rmax */
+            if (d->raero > 0.0f) {                                                               /* T21c: Raero */
+                float ya = y1 - E_CLAMP(d->raero / sc, 0.0f, 1.0f) * (y1 - y0);
+                hg_line_ext(bx, ya, bx + dir * 0.6f * tick, ya, 0.0f, col);
+            }
             if (d->rne > 0.0f) {
                 float yne = y1 - E_CLAMP(d->rne / sc, 0.0f, 1.0f) * (y1 - y0);
                 hg_line_ext(bx, yne - 1.5f * k, bx + dir * tick, yne - 1.5f * k, 0.0f, col);      /* Rne double */
@@ -812,6 +882,9 @@ static void draw_chase(const HudState *hs, const WpnIn *in, int zone, u32 col)
     if (zone && in->td >= 0 && !in->tdBox) s_dbg.bar = 0;
     draw_seeker(hs, in, col);
     draw_shoot(hs, in, zone, col);
+    if (zone && s_chaseAse && s_st.inLar) {                     /* T21d: 4th readout row (132 sat on the circle's top) */
+        hg_text(hg_px(RD_X), s_st.chRdY + 3 * hg_px(RD_DY), HF_SMALL, col, 0, "IN LAR"); lar_rect(hs, s_dbg.inLarRect); s_dbg.inLar = 1;
+    }
     weapon_strings(in);
     {                                                            /* weapon block, bottom right */
         int x = hg_px(BLK_X), y = hg_px(BLK_Y);
@@ -926,7 +999,7 @@ static int fixed_text_rects(const HudState *hs, const WpnIn *in, int zone, int (
         if (zone && s_chaseAse) {                                /* T16b: chase readout block (same widths as the cockpit) */
             int x1 = hg_px(RD_X) + hg_text_w(HF_SMALL, "0000");
             r[n][0] = hg_px(RD_X) - adv; r[n][1] = s_st.chRdY;
-            r[n][2] = x1 + hg_gap(HF_SMALL) + adv + hg_text_w(HF_SMALL, "TTG") + o; r[n][3] = s_st.chRdY + 2 * hg_px(RD_DY) + capS + o; n++;
+            r[n][2] = x1 + hg_gap(HF_SMALL) + adv + hg_text_w(HF_SMALL, "TTG") + o; r[n][3] = s_st.chRdY + 3 * hg_px(RD_DY) + capS + o; n++;   /* T21d: + the IN LAR row */
         }
         ws = hg_text_w(HF_SMALL, "VISUAL"); if (ws > w) w = ws;
         ws = hg_text_w(HF_SMALL, "FLR 00"); if (ws > w) w = ws;
@@ -1019,6 +1092,8 @@ static void draw_warn(const HudState *hs, const WpnIn *in, int zone, u32 red)
     nko = fixed_text_rects(hs, in, zone, ko);
     if (s_st.mslOn && nko < 12) { memcpy(ko[nko], mr, sizeof(mr)); nko++; }
     if (s_st.lockOn && nko < 12) { memcpy(ko[nko], lr, sizeof(lr)); nko++; }
+    if (cockpit && s_dbg.inLar && nko < 12) { memcpy(ko[nko], s_dbg.inLarRect, sizeof(s_dbg.inLarRect)); nko++; }   /* T21d: last:
+                                                     the ladder list holds 4 (MISSILE + LOCK keep theirs); arrows see all */
     for (s_nwko = 0; s_nwko < nko && s_nwko < 4; s_nwko++) memcpy(s_wko[s_nwko], ko[s_nwko], sizeof(ko[0]));
     s_wkoView = hs->view;
     nko += hud_keepout(ko + nko, 12 - nko, hs->view, hs->time);
@@ -1221,7 +1296,7 @@ static Vec3 cam_dir(const HudState *hs, float azDeg, float elDeg)
 
 /* ---- synthetic launch zone: published like dlz.cpp (cycles, smoothing up 50 %, NOW/NOWESC one cycle late) */
 typedef struct SynZone {
-    float rmaxT, rneT, rminT, cycle, nextPub, snapR, noise;
+    float rmaxT, rneT, rminT, raeroT, cycle, nextPub, snapR, noise;     /* raeroT 0 = no Raero (T21d) */
     int cycles; u32 rng;
     DlzView v;
 } SynZone;
@@ -1255,6 +1330,7 @@ static void syn_step(SynZone *z, float t, float R, float closure, Vec3 lead)
         syn_pub(&v->rmax, &v->srcMax, z->rmaxT * (1.0f + z->noise * syn_rand(&z->rng)));
         syn_pub(&v->rne, &v->srcNe, z->rneT * (1.0f + z->noise * syn_rand(&z->rng)));
         syn_pub(&v->rmin, &v->srcMin, z->rminT * (1.0f + z->noise * syn_rand(&z->rng)));
+        if (z->raeroT > 0.0f) syn_pub(&v->raero, &v->srcAero, z->raeroT * (1.0f + z->noise * syn_rand(&z->rng)));
         v->ready = 1;
         if (z->snapR > 0.0f) {
             v->nowValid = 1;
@@ -1321,11 +1397,13 @@ static int test_approach(int sel, int view)
     HudState hs;
     WpnIn in;
     SynZone z;
-    SegT seg;
+    SegT seg, segL;
     float t = 100.0f, R, Vc, rmax, rne, rmin, tRmax = -1.0f, tShoot = -1.0f, tRne = -1.0f, tFlash = -1.0f, tX = -1.0f, tRmin = -1.0f;
-    int viol = 0, violNe = 0, frames = 0, fails = 0, prevTicks = 0;
+    float tLar = -1.0f, prevAng = -1.0f, pvMax = -1.0f, pvMin = -1.0f, insideT = -1.0f;
+    int viol = 0, violNe = 0, frames = 0, fails = 0, prevTicks = 0, larViol = 0, larLate = 0, caretUp = 0;
     u32 jr = 12345u + (u32)sel;
     memset(&seg, 0, sizeof(seg));
+    memset(&segL, 0, sizeof(segL));
     hudwpn_reset();
     hs.time = t;
     ts_state(&hs, view, v3(2000.0f, 5000.0f, -3000.0f), 30.0f, 1.0f, 0.0f, 1.0f);
@@ -1354,11 +1432,32 @@ static int test_approach(int sel, int view)
         if (tFlash < 0.0f && sh == 2) tFlash = t;
         if (tX < 0.0f && s_dbg.brk) tX = t;
         if (tRmin < 0.0f && R <= rmin) tRmin = t;
+        /* T21d "IN LAR": never outside the published Rmin < R <= Rmax; inside at most SHOOT's entry time late */
+        {
+            int inside = in.dlz.ready && in.dlz.rmax > 0.0f && R <= in.dlz.rmax && R > in.dlz.rmin;
+            if (!inside) insideT = -1.0f; else if (insideT < 0.0f) insideT = t;
+            if (s_dbg.inLar && !inside) larViol++;
+            if (s_dbg.inLar && tLar < 0.0f) tLar = t;
+            if (inside && !s_dbg.inLar && t - insideT > s_onSec + z.cycle + 0.1f) larLate++;   /* entry: onSec + 1 publication */
+            seg_track(&segL, t, s_dbg.inLar);
+        }
+        /* T21d NIRD caret: falls monotonically while the published zone holds (it may step back only on a publication) */
+        if (in.dlz.ready) {
+            if (prevAng >= 0.0f && s_dbg.ptrAng > prevAng + 1e-3f && in.dlz.rmax == pvMax && in.dlz.rmin == pvMin) caretUp++;
+            prevAng = s_dbg.ptrAng; pvMax = in.dlz.rmax; pvMin = in.dlz.rmin;
+        }
         frames++;
     }
     log_printf(LOG_INFO, "hud: zone approach %s %s frames=%d violations=%d/%d changes=%d minHold=%.2f s | SHOOT %.2f s after Rmax, flashing %.2f s after Rne, X %.2f s before Rmin (scale %.0f NM, changes %d)",
                view == VIEW_CHASE ? "chase" : "cockpit", sel == MSL_SRM ? "srm" : "lrm", frames, viol, violNe, seg.changes, (double)seg.minHold, (double)(tShoot - tRmax),
                (double)(tFlash - tRne), (double)(tRmin - tX), (double)s_scaleNm[s_st.scaleIdx], s_st.scaleChanges);
+    log_printf(LOG_INFO, "hud: zone approach %s %s IN LAR %.2f s after Rmax, outside=%d late=%d changes=%d minHold=%.2f s | caret rises without a publication=%d",
+               view == VIEW_CHASE ? "chase" : "cockpit", sel == MSL_SRM ? "srm" : "lrm", (double)(tLar - tRmax), larViol, larLate, segL.changes,
+               (double)(segL.changes ? segL.minHold : 0.0f), caretUp);
+    if (larViol || larLate || tLar < tRmax || tLar - tRmax > 3.0f || segL.changes > 4 || (segL.changes && segL.minHold < 0.3f)) {
+        TFAIL("hud: FAIL zone approach: IN LAR (outside %d, late %d, %.2f s after Rmax, changes %d)", larViol, larLate, (double)(tLar - tRmax), segL.changes); fails++;
+    }
+    if (caretUp) { TFAIL("hud: FAIL zone approach: NIRD caret not monotonic (%d)", caretUp); fails++; }
     if (viol || violNe) { TFAIL("hud: FAIL zone approach: SHOOT shown when the published zone said no (%d/%d)", viol, violNe); fails++; }
     if (tShoot < 0.0f || tFlash < 0.0f || tX < 0.0f) { TFAIL("hud: FAIL zone approach: missing state shoot=%.1f flash=%.1f x=%.1f", (double)tShoot, (double)tFlash, (double)tX); fails++; }
     if (tShoot - tRmax > 3.0f || tFlash - tRne > 3.0f || tShoot < tRmax || tFlash < tRne) { TFAIL("hud: FAIL zone approach: latency"); fails++; }
@@ -1373,13 +1472,14 @@ static int test_hover(int which, int view)
     HudState hs;
     WpnIn in;
     SynZone z;
-    SegT seg, segX;
+    SegT seg, segX, segL;
     float t = 200.0f, t0, B;
-    int viol = 0, frames = 0, fails = 0, shortOn = 0, lastOnStart = -1;
-    float onStart = 0.0f;
+    int viol = 0, frames = 0, fails = 0, shortOn = 0, lastOnStart = -1, larViol = 0, larShort = 0, lastLar = -1;
+    float onStart = 0.0f, larStart = 0.0f;
     u32 jr = 999u + (u32)which;
     memset(&seg, 0, sizeof(seg));
     memset(&segX, 0, sizeof(segX));
+    memset(&segL, 0, sizeof(segL));
     hudwpn_reset();
     hs.time = t;
     ts_state(&hs, view, v3(-8000.0f, 3000.0f, 4000.0f), 300.0f, 0.0f, 0.0f, 2.0f);
@@ -1402,8 +1502,18 @@ static int test_hover(int which, int view)
             if (!on && lastOnStart == 1) { if (t - onStart < 0.25f) shortOn++; lastOnStart = 0; }
             seg_track(&seg, t, s_dbg.shoot);
             seg_track(&segX, t, s_dbg.brk);
+            /* T21d IN LAR on the noisy boundary: never outside, no short blips */
+            if (s_dbg.inLar && !(in.dlz.ready && R <= in.dlz.rmax && R > in.dlz.rmin)) larViol++;
+            if (s_dbg.inLar && lastLar != 1) { larStart = t; lastLar = 1; }
+            if (!s_dbg.inLar && lastLar == 1) { if (t - larStart < 0.25f) larShort++; lastLar = 0; }
+            seg_track(&segL, t, s_dbg.inLar);
         }
         frames++;
+    }
+    log_printf(LOG_INFO, "hud: zone hover %s %s IN LAR outside=%d changes=%d minHold=%.2f s shortOn=%d", view == VIEW_CHASE ? "chase" : "cockpit",
+               names[which], larViol, segL.changes, (double)(segL.changes ? segL.minHold : 0.0f), larShort);
+    if (larViol || larShort || (segL.changes && segL.minHold < 0.2f) || segL.changes > 30) {
+        TFAIL("hud: FAIL zone hover %s: IN LAR (outside %d, short %d, changes %d)", names[which], larViol, larShort, segL.changes); fails++;
     }
     log_printf(LOG_INFO, "hud: zone hover %s %s frames=%d violations=%d shoot changes=%d minHold=%.2f s shortOn=%d | X changes=%d minHold=%.2f s",
                view == VIEW_CHASE ? "chase" : "cockpit", names[which], frames, viol, seg.changes, (double)(seg.changes ? seg.minHold : 0.0f), shortOn, segX.changes,
@@ -1593,6 +1703,26 @@ static float rect_dist(const int *b, float cx, float cy)
     return (float)sqrt(dx * dx + dy * dy);
 }
 
+/* T21d: the spec of the NIRD (LAR GDD 2.3 / DESIGN 10.6) and of the dynamic ASE (GDD 2.4), written independently of
+   nird_ang / ase_deg: clock angle (deg) of range R, and the steering-dot edge (deg) at range R */
+static float nird_exp(float R, float rmax, float rmin)
+{
+    float a;
+    if (R > rmax) { a = 180.0f + 180.0f * (R / rmax - 1.0f); return a > 355.0f ? 355.0f : a; }   /* pinned at 2x Rmax */
+    if (rmin <= 0.0f) return 180.0f;
+    if (R >= rmin) return 75.0f + 105.0f * (R - rmin) / (rmax - rmin);
+    return 75.0f * R / rmin;
+}
+static float ase_exp(int sel, float R, float rmax, float rne, float rmin)
+{
+    const Param *pw = params_find("hud", sel == MSL_SRM ? "aseDegSrm" : "aseDegLrm");
+    const Param *pt = params_find("hud", sel == MSL_SRM ? "aseDegSrmMin" : "aseDegLrmMin");
+    float wide = pw ? *(const float *)pw->ptr : 20.0f, tight = pt ? *(const float *)pt->ptr : 10.0f, in = rne > 0.0f ? rne : rmin;
+    if (R >= rmax) return tight;
+    if (R <= in) return wide;
+    return tight + (wide - tight) * (rmax - R) / (rmax - in);
+}
+
 static int test_geometry(void)
 {
     HudState hs;
@@ -1602,16 +1732,17 @@ static int test_geometry(void)
     const Param *pg = params_find("hud", "aseGapMin600");
     float k = hg_k(), cx = (float)hg_px(lay->aseX), cy = (float)hg_px(lay->aseY), Rpx = lay->aseR * k, Rlim = (lay->aseR + lay->aseOut) * k;
     float t = 500.0f, maxReach = 0.0f, maxDot = 0.0f, dotErr = 0.0f;
-    int f, fails = 0, bs[4], ba[4], gs, ga, minGap, rd[4], pinnedSeen = 0, i, ch;
-    static const float dcase[5][4] = {      /* az, el -> expected offset as a fraction of the radius (x, y) */
-        { 10.0f, 0.0f, 0.5f, 0.0f }, { 0.0f, 10.0f, 0.0f, -0.5f }, { 40.0f, 0.0f, 1.0f, 0.0f }, { -7.5f, 0.0f, -0.375f, 0.0f }, { 0.0f, -16.0f, 0.0f, 0.8f } };
+    int f, fails = 0, bs[4], ba[4], gs, ga, minGap, rd[4], pinnedSeen = 0, i, ch, j;
+    static const float dcase[5][4] = {      /* az, el -> direction of the expected offset (x, y); size = angle / aseDeg(R) */
+        { 10.0f, 0.0f, 1.0f, 0.0f }, { 0.0f, 10.0f, 0.0f, -1.0f }, { 40.0f, 0.0f, 1.0f, 0.0f }, { -7.5f, 0.0f, -1.0f, 0.0f }, { 0.0f, -16.0f, 0.0f, 1.0f } };
+    static const float rcase[5] = { 1.3f, 1.0f, -1.0f, 0.0f, -2.0f };   /* x Rmax; -1 = mid Rne..Rmax, 0 = Rne, -2 = 0.5 Rne */
     memset(rd, 0, sizeof(rd));
     hudwpn_reset();
     hs.time = t;
     ts_state(&hs, VIEW_COCKPIT, v3(0.0f, 5000.0f, 0.0f), 0.0f, 0.0f, 0.0f, 2.0f);
     syn_start(&z, MSL_LRM, 19400.0f, 7600.0f, 800.0f, t, 5u, 0.0f);
-    for (f = 0; f < 600; f++) {
-        float R = f < 150 ? 3.6f * NM2M : (0.2f + (float)(f - 150) / 450.0f * 16.0f) * NM2M;
+    for (f = 0; f < 600; f++) {     /* T21d: out to 2.3 x Rmax (19.4 km): the NIRD caret pins beyond 2 x Rmax */
+        float R = f < 150 ? 3.6f * NM2M : (0.2f + (float)(f - 150) / 450.0f * 24.0f) * NM2M;
         t += 1.0f / 60.0f;
         hs.time = t;
         syn_step(&z, t, R, 500.0f, cam_dir(&hs, 30.0f * (float)sin((float)f * 0.05f), 30.0f * (float)cos((float)f * 0.031f)));
@@ -1641,18 +1772,50 @@ static int test_geometry(void)
         log_printf(LOG_INFO, "hud: zone readouts box %d,%d-%d,%d (alt box bottom %d, circle right edge at that row %.1f)", rd[0], rd[1], rd[2], rd[3], ba[3], (double)xr);
         if (rd[1] < ba[3] + 2 || (float)rd[0] < xr + 2.0f || rd[2] > s_W) { TFAIL("hud: FAIL zone readouts overlap"); fails++; }
     }
-    for (i = 0; i < 5; i++) {   /* steering dot scale: circle edge = aseDegLrm (20) */
-        float ex = cx + dcase[i][2] * Rpx, ey = cy + dcase[i][3] * Rpx, e;
+    for (j = 0; j < 5; j++) for (i = 0; i < 5; i++) {   /* T21d: steering dot, circle edge = the dynamic aseDeg at each range */
+        float R = rcase[j] > 0.0f ? rcase[j] * z.v.rmax : (rcase[j] == 0.0f ? z.v.rne : (rcase[j] == -1.0f ? 0.5f * (z.v.rmax + z.v.rne) : 0.5f * z.v.rne));
+        float ad = ase_exp(MSL_LRM, R, z.v.rmax, z.v.rne, z.v.rmin), fr = E_MINF(1.0f, (float)fabs(dcase[i][0] + dcase[i][1]) / ad), ex, ey, e;
+        ex = cx + dcase[i][2] * fr * Rpx; ey = cy + dcase[i][3] * fr * Rpx;
         z.v.leadDir = cam_dir(&hs, dcase[i][0], dcase[i][1]);
-        syn_in(&in, &hs, MSL_LRM, 3.6f * NM2M, 2.0f, -1.0f, &z.v);
+        z.v.range = R;
+        syn_in(&in, &hs, MSL_LRM, R, 2.0f, -1.0f, &z.v);
         memset(&s_st.dotSnap, 0, sizeof(Snap));
         hs.time = (t += 1.0f / 60.0f);
         hudwpn_draw_in(&hs, &in);
         e = (float)sqrt(((float)s_dbg.dotX - ex) * ((float)s_dbg.dotX - ex) + ((float)s_dbg.dotY - ey) * ((float)s_dbg.dotY - ey));
         if (e > dotErr) dotErr = e;
+        if (i == 0) log_printf(LOG_INFO, "hud: zone steering dot R=%.0f m (rmax %.0f rne %.0f): edge %.2f deg (expected %.2f)", (double)R, (double)z.v.rmax,
+                               (double)z.v.rne, (double)s_dbg.aseDeg, (double)ad);
     }
-    log_printf(LOG_INFO, "hud: zone steering dot max error %.2f px (5 cases)", (double)dotErr);
+    log_printf(LOG_INFO, "hud: zone steering dot max error %.2f px (25 cases: 5 directions x 5 ranges, dynamic edge)", (double)dotErr);
     if (dotErr > 1.0f) { TFAIL("hud: FAIL zone steering dot"); fails++; }
+    {   /* T21d: cockpit "IN LAR" clear of the circle's reach, LOCK (all slots), the readouts, the weapon line and the bank
+           pointer at any bank (hud.cpp: arc r 112 around the waterline, ptr_tri 7 x 5 tip on r - 2, pinned at 47 deg) */
+        int lr[4], sl[4], fr[4][4], nf, m = 1, bad = 0, q;
+        float bk, ptrGap = 1e9f, wx = (float)hg_px(lay->wlX), wy = (float)hg_px(lay->wlY);
+        hs.view = VIEW_COCKPIT;
+        lar_rect(&hs, lr);
+        if (rect_dist(lr, cx, cy) < maxReach + 2.0f) bad |= 1;
+        for (q = 0; q < 3; q++) { slot_rect(s_slotLockCp, q, HF_SMALL, "LOCK", sl); if (rect_hit(lr, sl, m)) bad |= 2; }
+        syn_in(&in, &hs, MSL_LRM, 3.6f * NM2M, 2.0f, -1.0f, &z.v);
+        nf = fixed_text_rects(&hs, &in, 1, fr);
+        for (q = 0; q < nf; q++) if (rect_hit(lr, fr[q], m)) bad |= 4;
+        for (bk = -47.0f; bk <= 47.01f; bk += 0.5f) {    /* the pointer triangle (rotated) vs the text rect */
+            float b = E_DEG2RAD(bk), tr = (112.0f - 2.0f) * k, tx = wx + (float)sin(b) * tr, ty = wy + (float)cos(b) * tr, u, v;
+            for (u = 0.0f; u <= 5.0f * k; u += 0.25f)
+                for (v = -3.5f * k * u / (5.0f * k); v <= 3.5f * k * u / (5.0f * k) + 1e-3f; v += 0.25f) {
+                    float px = tx - (float)sin(b) * u + (float)cos(b) * v, py = ty - (float)cos(b) * u - (float)sin(b) * v;
+                    float dx = E_MAXF(E_MAXF((float)lr[0] - px, 0.0f), px - (float)lr[2]), dy = E_MAXF(E_MAXF((float)lr[1] - py, 0.0f), py - (float)lr[3]);
+                    float dd = (float)sqrt(dx * dx + dy * dy);
+                    if (dd < ptrGap) ptrGap = dd;
+                }
+        }
+        if (ptrGap < 1.0f) bad |= 8;
+        slot_rect(s_slotLockCp, 0, HF_SMALL, "LOCK", sl);
+        log_printf(LOG_INFO, "hud: zone IN LAR cockpit rect %d,%d-%d,%d: gap to the circle reach %.1f px, LOCK home bottom %d (gap %d px), bank pointer gap %.1f px, flags %d",
+                   lr[0], lr[1], lr[2], lr[3], (double)(rect_dist(lr, cx, cy) - maxReach), sl[3], lr[1] - sl[3], (double)ptrGap, bad);
+        if (bad) { TFAIL("hud: FAIL zone IN LAR placement (cockpit, flags %d: 1 circle, 2 LOCK, 4 readouts/weapon line, 8 bank pointer)", bad); fails++; }
+    }
     /* SHOOT above/below the TD box near the top limit: +-1.9 px jitter -> at most one switch */
     {
         int yb = hg_px(SHOOT_LIM_CP) + s_boxHalf + hg_px(SHOOT_GAP) + hg_cap(HF_LARGE), prev = -1;
@@ -1737,11 +1900,12 @@ static int test_chase(void)
     const Param *pg = params_find("hud", "aseGapMin600");
     float k = hg_k(), t = 2000.0f, Rpx = lay->aseR * k, Rlim = (lay->aseR + lay->aseOut) * k, maxReach = 0.0f, aimOff = 0.0f, ex, ey;
     int f, fails = 0, ch, px = -1, py = -1, maxStep = 0, rev = 0, lastDir = 0, minGap, bs[4], ba[4], gs = 1 << 30, ga = 1 << 30;
-    int cyMin = 1 << 30, cyMax = -1, rdBad = 0, rdTop = 0, rdBot = 0, slotBad = 0, i, scaleBad = 0;
+    int cyMin = 1 << 30, cyMax = -1, rdBad = 0, rdTop = 0, rdBot = 0, slotBad = 0, i, scaleBad = 0, j, larBad = 0, larSeen = 0;
     float fitErr = 0.0f, dotErr = 0.0f;
     u32 jr = 8086u;
-    static const float dcase[5][4] = {
-        { 10.0f, 0.0f, 0.5f, 0.0f }, { 0.0f, 10.0f, 0.0f, -0.5f }, { 40.0f, 0.0f, 1.0f, 0.0f }, { -7.5f, 0.0f, -0.375f, 0.0f }, { 0.0f, -16.0f, 0.0f, 0.8f } };
+    static const float dcase[5][4] = {      /* az, el -> direction of the expected offset (x, y); size = angle / aseDeg(R) */
+        { 10.0f, 0.0f, 1.0f, 0.0f }, { 0.0f, 10.0f, 0.0f, -1.0f }, { 40.0f, 0.0f, 1.0f, 0.0f }, { -7.5f, 0.0f, -1.0f, 0.0f }, { 0.0f, -16.0f, 0.0f, 1.0f } };
+    static const float rcase[5] = { 1.3f, 1.0f, -1.0f, 0.0f, -2.0f };   /* x Rmax; -1 = mid Rne..Rmax, 0 = Rne, -2 = 0.5 Rne */
     minGap = (int)ceil((pg ? *(const float *)pg->ptr : 6.0f) * (float)hg_set_lines() / 600.0f);
     box_px(4, lay->chSpdX1, 1, lay->chYc, bs);
     box_px(5, lay->chAltX0, 0, lay->chYc, ba);
@@ -1832,6 +1996,18 @@ static int test_chase(void)
                 slot_rect(s_slotLockCh, 0, HF_SMALL, "LOCK", lr);
                 if (rect_dist(mr, cx, cy) < s_dbg.aseReach + 2.0f || rect_dist(lr, cx, cy) < s_dbg.aseReach + 2.0f) slotBad++;
             }
+            {   /* T21d: chase "IN LAR" (4th readout row) right of the circle, below the altitude box, on screen, inside the
+                   readout keep-out (chase weapon block clear) */
+                int lr[4], fr[4][4], nf;
+                lar_rect(&hs, lr);
+                nf = fixed_text_rects(&hs, &in, 1, fr);
+                if (s_dbg.inLar) {
+                    float dy = (float)lr[1] - cy, xr = dy < s_dbg.aseReach && dy > -s_dbg.aseReach ? cx + (float)sqrt(s_dbg.aseReach * s_dbg.aseReach - dy * dy) : cx;
+                    larSeen++;
+                    if (memcmp(lr, s_dbg.inLarRect, sizeof(lr)) || (float)lr[0] < xr + 2.0f || rect_hit(lr, ba, 2) || lr[2] > s_W || lr[3] > s_H ||
+                        nf < 2 || lr[0] < fr[0][0] || lr[2] > fr[0][2] || lr[3] > fr[0][3] || rect_hit(lr, fr[1], 2)) larBad++;
+                }
+            }
         }
         log_printf(LOG_INFO, "hud: zone chase geometry fov=%.0f centre %d,%d reach max %.2f px (limit %.2f) readouts y %d..%d (alt box bottom %d)",
                    (double)fov, s_dbg.aseCx, s_dbg.aseCy, (double)maxReach, (double)Rlim, rdTop, rdBot, ba[3]);
@@ -1839,45 +2015,190 @@ static int test_chase(void)
     log_printf(LOG_INFO, "hud: zone chase geometry set=%d spdBox=%d,%d-%d,%d altBox=%d,%d-%d,%d gapSpd=%d gapAlt=%d min=%d readout overlaps=%d MISSILE/LOCK on the circle=%d",
                hg_set_lines(), bs[0], bs[1], bs[2], bs[3], ba[0], ba[1], ba[2], ba[3], gs, ga, minGap, rdBad, slotBad);
     if (maxReach > Rlim + 0.5f || gs < minGap || ga < minGap) { TFAIL("hud: FAIL zone chase circle too close to the boxes"); fails++; }
+    log_printf(LOG_INFO, "hud: zone chase IN LAR (4th readout row) frames %d, misplaced %d", larSeen, larBad);
     if (rdBad || slotBad) { TFAIL("hud: FAIL zone chase readouts / slots overlap (%d / %d)", rdBad, slotBad); fails++; }
-    /* 4. steering dot: angle nose -> lead (the circle edge = aseDegLrm), direction on the screen axes */
+    if (!larSeen || larBad) { TFAIL("hud: FAIL zone chase IN LAR placement (%d of %d frames)", larBad, larSeen); fails++; }
+    /* 4. steering dot: angle nose -> lead, direction on the screen axes; T21d: the edge = the dynamic aseDeg at 5 ranges */
     hudwpn_reset();
-    for (i = 0; i < 5; i++) {
-        float e, cx, cy;
+    for (j = 0; j < 5; j++) for (i = 0; i < 5; i++) {
+        float e, cx, cy, R, ad, fr;
+        R = rcase[j] > 0.0f ? rcase[j] * z.v.rmax : (rcase[j] == 0.0f ? z.v.rne : (rcase[j] == -1.0f ? 0.5f * (z.v.rmax + z.v.rne) : 0.5f * z.v.rne));
+        ad = ase_exp(MSL_LRM, R, z.v.rmax, z.v.rne, z.v.rmin);
+        fr = E_MINF(1.0f, (float)fabs(dcase[i][0] + dcase[i][1]) / ad);
         hs.time = (t += 1.0f / 60.0f);
         ts_chase_cam(&hs, 70.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
         z.v.leadDir = nose_dir(&hs, dcase[i][0], dcase[i][1]);
         z.v.leadValid = 1;
-        syn_in(&in, &hs, MSL_LRM, 3.6f * NM2M, 2.0f, -1.0f, &z.v);
+        z.v.range = R;
+        syn_in(&in, &hs, MSL_LRM, R, 2.0f, -1.0f, &z.v);
         memset(&s_st.dotSnap, 0, sizeof(Snap));
         hudwpn_draw_in(&hs, &in);
         cx = (float)s_dbg.aseCx; cy = (float)s_dbg.aseCy;
-        e = (float)sqrt(((float)s_dbg.dotX - cx - dcase[i][2] * Rpx) * ((float)s_dbg.dotX - cx - dcase[i][2] * Rpx) +
-                        ((float)s_dbg.dotY - cy - dcase[i][3] * Rpx) * ((float)s_dbg.dotY - cy - dcase[i][3] * Rpx));
+        e = (float)sqrt(((float)s_dbg.dotX - cx - dcase[i][2] * fr * Rpx) * ((float)s_dbg.dotX - cx - dcase[i][2] * fr * Rpx) +
+                        ((float)s_dbg.dotY - cy - dcase[i][3] * fr * Rpx) * ((float)s_dbg.dotY - cy - dcase[i][3] * fr * Rpx));
         if (e > dotErr) dotErr = e;
     }
-    log_printf(LOG_INFO, "hud: zone chase steering dot max error %.2f px (5 cases)", (double)dotErr);
+    log_printf(LOG_INFO, "hud: zone chase steering dot max error %.2f px (25 cases: 5 directions x 5 ranges, dynamic edge)", (double)dotErr);
     if (dotErr > 1.0f) { TFAIL("hud: FAIL zone chase steering dot"); fails++; }
-    /* 5. longer ranges (T21a: player LRM ~2x, radar ~40 NM): scale 30 for Rmax 39 km, pinned + flashing beyond it; scale
-          40 + ticks clamped at 355 deg for an Rmax beyond the largest scale */
+    /* 5. long ranges (T21a/b: player LRM Rmax ~40 km, radar ~40 NM). T21d NIRD: Rmax tick at 180 deg and Rmin at 75 for
+          any Rmax, Rne in between, the caret / Raero tick where nird_exp puts them (out of range on the left semicircle,
+          pinned + flashing at 355 beyond 2 x Rmax), everything inside the circle's reach */
     {
-        static const float cs[4][3] = { { 39000.0f, 38.0f, 30.0f }, { 39000.0f, 20.0f, 30.0f }, { 70000.0f, 39.0f, 40.0f }, { 70000.0f, 20.0f, 40.0f } };
-        for (i = 0; i < 4; i++) {
+        static const float cs[6][3] = {          /* Rmax m, R m, Raero x Rmax */
+            { 39000.0f, 38.0f * NM2M, 1.25f }, { 39000.0f, 20.0f * NM2M, 0.62f }, { 39000.0f, 2.2f * 39000.0f, 2.4f },
+            { 70000.0f, 39.0f * NM2M, 0.7f }, { 70000.0f, 20.0f * NM2M, 1.1f }, { 40400.0f, 13500.0f, 0.6f } };
+        for (i = 0; i < 6; i++) {
+            float rne = cs[i][0] * 0.4f, eP, eNe, eA, err = 0.0f;
+            int drawn = 0, hidden = 0, pinExp;
             hudwpn_reset();
-            syn_start(&z, MSL_LRM, cs[i][0], cs[i][0] * 0.4f, 1200.0f, t, 30u + (u32)i, 0.0f);
+            syn_start(&z, MSL_LRM, cs[i][0], rne, 1200.0f, t, 30u + (u32)i, 0.0f);
+            z.raeroT = cs[i][2] * cs[i][0];
             for (f = 0; f < 120; f++) {
                 hs.time = (t += 1.0f / 60.0f);
                 ts_chase_cam(&hs, 70.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-                syn_step(&z, t, cs[i][1] * NM2M, 600.0f, hs.noseDir);
-                syn_in(&in, &hs, MSL_LRM, cs[i][1] * NM2M, 2.0f, -1.0f, &z.v);
+                syn_step(&z, t, cs[i][1], 600.0f, hs.noseDir);
+                syn_in(&in, &hs, MSL_LRM, cs[i][1], 2.0f, -1.0f, &z.v);
+                hudwpn_draw_in(&hs, &in);
+                if (f >= 60) { if (s_dbg.ptrDrawn) drawn++; else hidden++; }
+            }
+            pinExp = cs[i][1] > 2.0f * z.v.rmax;
+            eP = pinExp ? 355.0f : nird_exp(cs[i][1], z.v.rmax, z.v.rmin);
+            eNe = nird_exp(z.v.rne, z.v.rmax, z.v.rmin);
+            eA = nird_exp(z.v.raero, z.v.rmax, z.v.rmin);
+            err = E_MAXF(E_MAXF((float)fabs(s_dbg.ptrAng - eP), (float)fabs(s_dbg.rmaxAng - 180.0f)),
+                         E_MAXF((float)fabs(s_dbg.rminAng - 75.0f), E_MAXF((float)fabs(s_dbg.rneAng - eNe), (float)fabs(s_dbg.raeroAng - eA))));
+            log_printf(LOG_INFO, "hud: zone chase long range rmax=%.0f m R=%.0f m: caret %.1f deg (expected %.1f)%s drawn %d/%d | ticks rmax %.1f rne %.1f "
+                       "(expected %.1f) rmin %.1f raero %.0f m %.1f (expected %.1f) | reach %.2f px",
+                       (double)z.v.rmax, (double)cs[i][1], (double)s_dbg.ptrAng, (double)eP, s_dbg.ptrPinned ? " pinned" : "", drawn, drawn + hidden,
+                       (double)s_dbg.rmaxAng, (double)s_dbg.rneAng, (double)eNe, (double)s_dbg.rminAng, (double)z.v.raero, (double)s_dbg.raeroAng,
+                       (double)eA, (double)s_dbg.aseReach);
+            if (err > 0.05f || (s_dbg.ptrPinned != 0) != pinExp || !(s_dbg.rneAng > 75.0f && s_dbg.rneAng < 180.0f) || s_dbg.aseReach > Rlim + 0.5f ||
+                (pinExp ? (!drawn || !hidden) : hidden != 0)) scaleBad++;
+        }
+        if (scaleBad) { TFAIL("hud: FAIL zone chase long-range NIRD (%d)", scaleBad); fails++; }
+    }
+    return fails;
+}
+
+/* ---- part T21d: the NIRD over a whole approach (player LRM numbers, no noise): caret = nird_exp at every frame (pinned
+   at 355 and flashing beyond 2 x Rmax with the 2 % release hysteresis, then falling monotonically and continuously
+   through Rmax / Rne / Rmin), the ticks fixed (Rmax 180, Rmin 75, Rne / Raero by nird_exp), the steering dot on the
+   dynamic edge at every range, "IN LAR" exactly in Rmin < R <= Rmax (entry within SHOOT's latency, exit at once). */
+static int test_nird(int view, float raeroFrac)
+{
+    HudState hs;
+    WpnIn in;
+    SynZone z;
+    const HudLayout *lay = hud_layout();
+    const char *vn = view == VIEW_CHASE ? "chase" : "cockpit";
+    float k = hg_k(), Rpx = lay->aseR * k, Rlim = (lay->aseR + lay->aseOut) * k, t = 3000.0f, R, Vc = 1500.0f;
+    float rmax = 40400.0f, rne = 13500.0f, rmin = 950.0f, az = 6.0f;
+    float prevAng = -1.0f, maxStep = 0.0f, angErr = 0.0f, tickErr = 0.0f, dotErr = 0.0f, maxReach = 0.0f, angOut = -1.0f, angIn = -1.0f;
+    float insideT = -1.0f, tIn = -1.0f, tLar = -1.0f, rLarOff = -1.0f;
+    int fails = 0, frames = 0, rises = 0, pinExp = 0, pinBad = 0, pinFr = 0, pinShown = 0, unpinHidden = 0, larViol = 0, larLate = 0;
+    int larCh = 0, prevLar = 0, tickBad = 0, nanDot = 0, prevPin = -1, pinRel = -1;
+    hudwpn_reset();
+    hs.time = t;
+    ts_state(&hs, view, v3(0.0f, 6000.0f, 0.0f), 0.0f, 0.0f, 0.0f, 2.0f);
+    if (view == VIEW_CHASE) ts_chase_cam(&hs, 70.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+    syn_start(&z, MSL_LRM, rmax, rne, rmin, t, 91u + (u32)view, 0.0f);
+    z.raeroT = raeroFrac * rmax;
+    R = 2.3f * rmax;
+    while (R > 0.5f * rmin) {
+        float v = R < 3.0f * rmin ? 0.2f * Vc : Vc, eA, ad, fr, ex, ey, e;
+        Vec3 lead;
+        int inside;
+        t += 1.0f / 60.0f;
+        R -= v / 60.0f;
+        hs.time = t;
+        lead = view == VIEW_CHASE ? nose_dir(&hs, az, 0.0f) : cam_dir(&hs, az, 0.0f);
+        syn_step(&z, t, R, v, lead);
+        syn_in(&in, &hs, MSL_LRM, R, 2.0f, -1.0f, &z.v);
+        hudwpn_draw_in(&hs, &in);
+        frames++;
+        if (!in.dlz.ready) continue;
+        if (s_dbg.aseReach > maxReach) maxReach = s_dbg.aseReach;
+        /* pin: on beyond 2 x Rmax, off below 0.98 x that (the test's own model of the hysteresis) */
+        if (!pinExp && R > 2.0f * in.dlz.rmax) pinExp = 1;
+        else if (pinExp && R < 0.98f * 2.0f * in.dlz.rmax) pinExp = 0;
+        if ((s_dbg.ptrPinned != 0) != pinExp) pinBad++;
+        if (pinExp) { pinFr++; if (s_dbg.ptrDrawn) pinShown++; }
+        else if (!s_dbg.ptrDrawn) unpinHidden++;
+        if (prevPin == 1 && !s_dbg.ptrPinned) pinRel = frames;
+        prevPin = s_dbg.ptrPinned;
+        /* caret */
+        eA = pinExp ? 355.0f : nird_exp(R, in.dlz.rmax, in.dlz.rmin);
+        e = (float)fabs(s_dbg.ptrAng - eA);
+        if (e > angErr) angErr = e;
+        if (prevAng >= 0.0f) {
+            if (s_dbg.ptrAng > prevAng + 1e-3f) rises++;
+            if (prevAng - s_dbg.ptrAng > maxStep && frames != pinRel) maxStep = prevAng - s_dbg.ptrAng;
+        }
+        if (R > in.dlz.rmax) angOut = s_dbg.ptrAng; else if (angIn < 0.0f) angIn = s_dbg.ptrAng;   /* last outside / first inside */
+        prevAng = s_dbg.ptrAng;
+        /* ticks */
+        e = E_MAXF((float)fabs(s_dbg.rmaxAng - 180.0f), (float)fabs(s_dbg.rminAng - 75.0f));
+        e = E_MAXF(e, (float)fabs(s_dbg.rneAng - nird_exp(in.dlz.rne, in.dlz.rmax, in.dlz.rmin)));
+        e = E_MAXF(e, (float)fabs(s_dbg.raeroAng - nird_exp(in.dlz.raero, in.dlz.rmax, in.dlz.rmin)));
+        if (e > tickErr) tickErr = e;
+        if (!(s_dbg.rneAng > 75.0f && s_dbg.rneAng < 180.0f) || !s_dbg.ticks) tickBad++;
+        /* steering dot on the dynamic edge (az 6 deg right: fraction = 6 / aseDeg(R)) */
+        ad = ase_exp(MSL_LRM, R, in.dlz.rmax, in.dlz.rne, in.dlz.rmin);
+        fr = E_MINF(1.0f, az / ad);
+        ex = (float)s_dbg.aseCx + fr * Rpx; ey = (float)s_dbg.aseCy;
+        if (!(s_dbg.dotFx == s_dbg.dotFx) || !(s_dbg.dotFy == s_dbg.dotFy)) nanDot++;
+        e = (float)sqrt((s_dbg.dotFx - ex) * (s_dbg.dotFx - ex) + (s_dbg.dotFy - ey) * (s_dbg.dotFy - ey));
+        if (e > dotErr) dotErr = e;
+        /* IN LAR */
+        inside = R <= in.dlz.rmax && R > in.dlz.rmin;
+        if (!inside) insideT = -1.0f; else if (insideT < 0.0f) { insideT = t; if (tIn < 0.0f) tIn = t; }
+        if (s_dbg.inLar && !inside) larViol++;
+        if (inside && !s_dbg.inLar && t - insideT > s_onSec + z.cycle + 0.1f) larLate++;
+        if (s_dbg.inLar && tLar < 0.0f) tLar = t;
+        if (prevLar && !s_dbg.inLar) rLarOff = R;
+        if (s_dbg.inLar != prevLar) larCh++;
+        prevLar = s_dbg.inLar;
+    }
+    log_printf(LOG_INFO, "hud: zone nird %s rmax=%.0f rne=%.0f rmin=%.0f raero=%.0f frames=%d | caret max error %.3f deg, rises %d, max step %.2f deg "
+               "(pin release excluded), at Rmax %.2f -> %.2f deg | pinned %d frames (mismatch %d) drawn %d (flashing), unpinned hidden %d | "
+               "ticks max error %.3f deg (bad %d) | dot max error %.2f px (nan %d) | IN LAR %.2f s after Rmax, outside %d, late %d, "
+               "changes %d, off at R=%.0f | reach %.2f px (limit %.2f)", vn, (double)z.v.rmax, (double)z.v.rne, (double)z.v.rmin, (double)z.v.raero,
+               frames, (double)angErr, rises, (double)maxStep, (double)angOut, (double)angIn, pinFr, pinBad, pinShown, unpinHidden, (double)tickErr,
+               tickBad, (double)dotErr, nanDot, (double)(tLar - tIn), larViol, larLate, larCh, (double)rLarOff, (double)maxReach, (double)Rlim);
+    if (angErr > 0.05f || rises || maxStep > 0.5f || (float)fabs(angOut - 180.0f) > 0.5f || (float)fabs(angIn - 180.0f) > 0.5f) {
+        TFAIL("hud: FAIL zone nird %s caret (error %.3f, rises %d, step %.2f)", vn, (double)angErr, rises, (double)maxStep); fails++;
+    }
+    if (pinBad || pinFr < 60 || pinShown == 0 || pinShown == pinFr || unpinHidden) {
+        TFAIL("hud: FAIL zone nird %s pin (mismatch %d, drawn %d/%d, unpinned hidden %d)", vn, pinBad, pinShown, pinFr, unpinHidden); fails++;
+    }
+    if (tickErr > 0.05f || tickBad) { TFAIL("hud: FAIL zone nird %s ticks (error %.3f, bad %d)", vn, (double)tickErr, tickBad); fails++; }
+    if (dotErr > 0.25f || nanDot) { TFAIL("hud: FAIL zone nird %s steering dot scale (%.2f px, nan %d)", vn, (double)dotErr, nanDot); fails++; }
+    if (larViol || larLate || larCh != 2 || tLar < tIn) { TFAIL("hud: FAIL zone nird %s IN LAR (outside %d, late %d, changes %d)", vn, larViol, larLate, larCh); fails++; }
+    if (maxReach > Rlim + 0.5f) { TFAIL("hud: FAIL zone nird %s reach %.2f px", vn, (double)maxReach); fails++; }
+    if (view != VIEW_CHASE) {   /* no Rne published (no no-escape zone): no Rne tick, the dot edge widens towards Rmin, finite */
+        static const float rr[4] = { 1.2f, 1.0f, 0.5f, 0.03f };
+        int q, bad = 0;
+        float derr = 0.0f;
+        hudwpn_reset();
+        syn_start(&z, MSL_LRM, rmax, 0.0f, rmin, t, 92u, 0.0f);
+        for (q = 0; q < 4; q++) {
+            int f2;
+            float ad, fr, ex, e;
+            for (f2 = 0; f2 < 60; f2++) {
+                hs.time = (t += 1.0f / 60.0f);
+                syn_step(&z, t, rr[q] * rmax, 300.0f, cam_dir(&hs, az, 0.0f));
+                syn_in(&in, &hs, MSL_LRM, rr[q] * rmax, 2.0f, -1.0f, &z.v);
                 hudwpn_draw_in(&hs, &in);
             }
-            log_printf(LOG_INFO, "hud: zone chase long range rmax=%.0f m R=%.0f NM: scale %.0f NM pointer %.0f deg%s rmax tick %.0f deg rne %.0f deg reach %.2f px",
-                       (double)cs[i][0], (double)cs[i][1], (double)s_dbg.scaleNm, (double)s_dbg.ptrAng, s_dbg.ptrPinned ? " pinned" : "",
-                       (double)s_dbg.rmaxAng, (double)s_dbg.rneAng, (double)s_dbg.aseReach);
-            if (s_dbg.scaleNm != cs[i][2] || (s_dbg.ptrPinned != 0) != (cs[i][1] > cs[i][2]) || s_dbg.aseReach > Rlim + 0.5f) scaleBad++;
+            ad = ase_exp(MSL_LRM, rr[q] * rmax, z.v.rmax, 0.0f, z.v.rmin);
+            fr = E_MINF(1.0f, az / ad);
+            ex = (float)s_dbg.aseCx + fr * Rpx;
+            e = (float)fabs(s_dbg.dotFx - ex);
+            if (!(e == e) || s_dbg.rneAng != 0.0f || z.v.rne != 0.0f) bad++;
+            if (e > derr) derr = e;
         }
-        if (scaleBad) { TFAIL("hud: FAIL zone chase long-range scale (%d)", scaleBad); fails++; }
+        log_printf(LOG_INFO, "hud: zone nird no-Rne: dot edge towards Rmin, max error %.2f px, bad %d", (double)derr, bad);
+        if (bad || derr > 0.25f) { TFAIL("hud: FAIL zone nird no-Rne (bad %d, %.2f px)", bad, (double)derr); fails++; }
     }
     return fails;
 }
@@ -2205,6 +2526,7 @@ static const ShotCase s_cases[] = {
     { "visual",     V_CP | V_CH, MSL_LRM, -1,  0.0f, 0,  0.0f,  0.0f, -1, 0, 0, 0 },
     { "warn",       V_CP | V_CH, MSL_LRM,  1,  8.0f, 0,  0.0f,  0.0f, -1, 0, 3, 1 },
     { "visual_warn", V_CP | V_CH, MSL_LRM, -1, 0.0f, 0,  0.0f,  0.0f, -1, 0, 3, 1 },   /* T18: VISUAL + LOCK + arrows */
+    { "lar_edge",   V_CP | V_CH, MSL_LRM,  1, 10.3f, 0, 0.0f,  0.0f, -1, 0, 0, 0 },   /* T21d: just inside Rmax (caret ~6:00, IN LAR, tight dot) */
 };
 
 /* one frame of a scene: T07 HUD, T15 symbology (TD box), weapon HUD, minimap; render = inside a real frame */
@@ -2264,6 +2586,7 @@ static void zone_for(const ShotCase *sc, SynZone *z, float t)
 {
     if (sc->sel == MSL_SRM) syn_start(z, MSL_SRM, 5000.0f, 2700.0f, 350.0f, t, 1u, 0.0f);
     else syn_start(z, MSL_LRM, 19400.0f, 7600.0f, 800.0f, t, 1u, 0.0f);
+    z->raeroT = 0.75f * z->rmaxT;                   /* T21d: a head-on-like Raero tick (inside the LAR arc) */
 }
 
 static int test_shots(void)
@@ -2284,10 +2607,11 @@ static int test_shots(void)
         if (v) e_snprintf(shot, (int)sizeof(shot), "shots\\chase_wpn_%s_%d.bmp", sc->name, s_H);   /* T16b */
         else e_snprintf(shot, (int)sizeof(shot), "shots\\wpn_cockpit_%s_%d.bmp", sc->name, s_H);
         for (f = 0; f <= 180; f++) scene_frame(sc, v ? VIEW_CHASE : VIEW_COCKPIT, t0 + (float)f / 60.0f, T, &z, &hs, f >= 178, f == 180 ? shot : NULL);
-        log_printf(LOG_INFO, "hud: zone shot %s %s shoot=%d drawn=%d brk=%d circle=%d(%d,%d) ticks=%d scale=%.0f ptr=%.0f%s vc=\"%s\" rng=\"%s\" third=\"%s\" seek=%d(%d,%d)lock=%d visual=%d msl=%d lock=%d arrows=%d bar=%d wl=\"%s\" quads=%d draws=%d ms=%.3f",
+        log_printf(LOG_INFO, "hud: zone shot %s %s shoot=%d drawn=%d brk=%d circle=%d(%d,%d) ticks=%d scale=%.0f ptr=%.0f%s vc=\"%s\" rng=\"%s\" third=\"%s\" seek=%d(%d,%d)lock=%d visual=%d msl=%d lock=%d arrows=%d bar=%d wl=\"%s\" quads=%d draws=%d ms=%.3f inLar=%d ase=%.1f",
                    v ? "chase" : "cockpit", sc->name, s_dbg.shoot, s_dbg.shootDrawn, s_dbg.brk, s_dbg.circle, s_dbg.aseCx, s_dbg.aseCy, s_dbg.ticks, (double)s_dbg.scaleNm,
                    (double)s_dbg.ptrAng, s_dbg.ptrPinned ? "p" : "", s_dbg.vc, s_dbg.rng, s_dbg.thirdStr, s_dbg.seek, s_dbg.seekX, s_dbg.seekY,
-                   s_dbg.seekLock, s_dbg.visual, s_dbg.msl, s_dbg.lock, s_dbg.arrows, s_dbg.bar, s_dbg.wl, s_quads, s_draws, (double)s_ms);
+                   s_dbg.seekLock, s_dbg.visual, s_dbg.msl, s_dbg.lock, s_dbg.arrows, s_dbg.bar, s_dbg.wl, s_quads, s_draws, (double)s_ms,
+                   s_dbg.inLar, (double)s_dbg.aseDeg);
         /* expected states of the review scenes */
         if (!strcmp(sc->name, "rmax") && s_dbg.shoot != 1) { TFAIL("hud: FAIL zone shot rmax: SHOOT not steady"); fails++; }
         if ((!strcmp(sc->name, "rne") || !strcmp(sc->name, "srm_lock")) && (s_dbg.shoot != 2 || !s_dbg.shootDrawn)) { TFAIL("hud: FAIL zone shot %s: SHOOT not flashing (on phase)", sc->name); fails++; }
@@ -2299,6 +2623,11 @@ static int test_shots(void)
         if (!strcmp(sc->name, "warn") && (!s_dbg.mslDrawn || !s_dbg.lock || s_dbg.arrows != 3)) { TFAIL("hud: FAIL zone shot warn"); fails++; }
         if (v == 1 && sc->td >= 0 && (!s_dbg.circle || s_dbg.bar)) { TFAIL("hud: FAIL zone shot %s chase: no circle (or a DLZ bar too)", sc->name); fails++; }
         if (v == 1 && sc->td >= 0 && !s_dbg.rdX1) { TFAIL("hud: FAIL zone shot %s chase: no readouts", sc->name); fails++; }
+        if (sc->td >= 0) {                          /* T21d: IN LAR exactly in the scenes inside Rmin < R <= Rmax */
+            float R = sc->rNm * NM2M;
+            int want = z.v.ready && R <= z.v.rmax && R > z.v.rmin;
+            if (s_dbg.inLar != want) { TFAIL("hud: FAIL zone shot %s %s: IN LAR %d (expected %d)", v ? "chase" : "cockpit", sc->name, s_dbg.inLar, want); fails++; }
+        }
     }
     return fails;
 }
@@ -2488,6 +2817,8 @@ int hudwpn_test(void)
     test_seeker_warn();
     test_geometry();
     test_chase();
+    test_nird(VIEW_COCKPIT, 0.62f);                 /* T21d: head-on-like Raero (inside the LAR arc) */
+    test_nird(VIEW_CHASE, 1.3f);                    /*        tail-like Raero (out-of-range side) */
     test_camera();
     test_live();
     test_keepout();

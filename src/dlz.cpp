@@ -20,7 +20,7 @@
 /* ------------------------------------------------------------------ params */
 static int   s_stepsLow, s_stepsHigh, s_maxUsFrame, s_earlyOut, s_tablesOn, s_trace;
 static int   s_saveOnBuild;
-static float s_tabGUse, s_leadFrac, s_gUseParam, s_tolMax, s_tolNe, s_tolMin, s_pad, s_smUp, s_smDown, s_dt;
+static float s_tabGUse, s_leadFrac, s_gUseParam, s_tolMax, s_tolNe, s_tolMin, s_pad, s_smUp, s_smDown, s_dt, s_coastFarM;
 
 static const Param s_tab[] = {
     { "dlz", "stepsLow", P_INT, &s_stepsLow, "200", 20, 20000,
@@ -33,6 +33,8 @@ static const Param s_tab[] = {
     { "dlz", "tableGUse", P_FLOAT, &s_tabGUse, "1.0", 0.2f, 1.0f,
       "AI tables (the AI shooting at the player): the player's escapes at this fraction of the G limit (full stick = 1)" },
     { "dlz", "dt", P_FLOAT, &s_dt, "0.0333333", 0.004f, 0.05f, "fly-out step (s); 1/30 agrees with live 1/120 (T12)" },
+    { "dlz", "coastFarM", P_FLOAT, &s_coastFarM, "6000", 0.0f, 100000.0f,
+      "T21d: live/sync fly-outs step 2 x dt after the motor burn while the target is farther than this (m; 0 = off; tables keep dt)" },
     { "dlz", "tolMax", P_FLOAT, &s_tolMax, "0.025", 0.005f, 0.2f, "Rmax search ends when the hit/miss bracket is this narrow (fraction)" },
     { "dlz", "tolNe", P_FLOAT, &s_tolNe, "0.03", 0.005f, 0.2f, "Rne search bracket (fraction); Rne publishes the verified hit side" },
     { "dlz", "tolMin", P_FLOAT, &s_tolMin, "0.05", 0.005f, 0.3f, "Rmin search bracket (fraction, at least 25 m)" },
@@ -191,7 +193,7 @@ typedef struct Run {
     Tgt tg;
     const MissileParams *mp;
     float R, t, tMin, lastMin, dt, shortfall, maxT, lockRange;
-    int esc, steps, active, early, nolock;
+    int esc, steps, active, early, nolock, coarse;
 } Run;
 
 static void run_begin(Run *r, const DlzGeom *g, float R, int esc)
@@ -203,6 +205,7 @@ static void run_begin(Run *r, const DlzGeom *g, float R, int esc)
     r->esc = esc;
     r->dt = s_dt > 0.0f ? s_dt : 1.0f / 30.0f;
     r->maxT = r->mp->maxSec + 1.0f;
+    r->coarse = !s_tabMode && s_coastFarM > 0.0f && esc == DLZ_STRAIGHT;   /* T21d: coarse coast (straight targets only; not the AI tables) */
     tgt_init(&r->tg, g, v3_madd(g->sPos, los, R), esc);
     r->tv.valid = 1;
     r->tv.pos = r->tg.pos;
@@ -235,14 +238,19 @@ static int run_step(Run *r, const DlzGeom *g, int n)
     int k, s0 = r->steps;
     Missile *m = &r->m;
     const MissileParams *mp = r->mp;
-    float boostEnd = mp->dropSec + mp->boostSec, dist, vAl, dh, V0, reach;
+    float boostEnd = missile_burn_end(mp), dist, vAl, dh, V0, reach;
     Vec3 d;
     for (k = 0; k < n && r->active; k++) {
-        tgt_step(&r->tg, r->dt);
+        float h = r->dt;
+        if (r->coarse && m->age > boostEnd) {      /* T21d: long coast far from the target: 2 x dt (one step's cost) */
+            d = v3_sub(r->tg.pos, m->pos);
+            if (v3_dot(d, d) > s_coastFarM * s_coastFarM) h = 2.0f * r->dt;
+        }
+        tgt_step(&r->tg, h);
         r->tv.pos = r->tg.pos;
         r->tv.vel = r->tg.vel;
-        missile_step(m, mp, &r->tv, g->ter, r->dt);
-        r->t += r->dt;
+        missile_step(m, mp, &r->tv, g->ter, h);
+        r->t += h;
         r->steps++;
         if (m->minDist < r->lastMin) { r->lastMin = m->minDist; r->tMin = r->t; }
         if (m->phase == MPH_DEAD || (m->flags & MF_MISSED) || r->t > r->maxT) { r->active = 0; break; }
@@ -288,6 +296,8 @@ static void run_result(const Run *r, DlzFly *f)
         vAl = v3_dot(r->tg.vel, m->dir);
         tb = mp->dropSec + mp->boostSec - m->age;
         V0 = m->V + (tb > 0.0f ? 0.7f * mp->boostAcc * tb : 0.0f);
+        tb = mp->dropSec + mp->boostSec + mp->sustainSec - m->age;
+        V0 += (tb > 0.0f && mp->sustainSec > 0.0f ? 0.7f * mp->sustainAcc * tb : 0.0f);
         f->reach = coast_reach(mp, V0, m->age, mp->densityAlt ? m->rho : 1.0f, vAl);
     } else if (m->result == MRES_GROUND || m->result == MRES_FLARE) {
         f->shortfall = -1.0f;
@@ -1127,6 +1137,12 @@ void dlz_work(Game *g, int budgetSteps)
         s_last = z;
         s_view.rmax = z.rmax; s_view.rne = z.rne; s_view.rmin = z.rmin;
         s_view.srcMax = s_view.srcNe = s_view.srcMin = DLZV_TABLE;
+        {                                               /* T21c: Raero = zero-closure aerodynamic range */
+            Vec3 dd = v3_sub(tp, pl->fs.pos);
+            float l = v3_len(dd), vAlong = l > 1.0f ? v3_dot(tv, dd) / l : 0.0f;
+            s_view.raero = z.rmax + vAlong * z.tof;
+            s_view.srcAero = DLZV_TABLE;
+        }
         s_view.worstEsc = z.worstEsc;
         s_avgV = type == MSL_SRM ? 650.0f : 750.0f;
         s_pubTick = g->tick;
@@ -1177,7 +1193,14 @@ void dlz_work(Game *g, int budgetSteps)
                 if (!s_S.nowHit) { s_view.nowEscValid = 1; s_view.nowNoEscape = 0; }
             }
             if (p & PUB_NOWESC) { s_view.nowEscValid = 1; s_view.nowNoEscape = s_S.nowNoEsc; s_view.nowEscFlown = !s_S.nowEscSkipped; }
-            if (p & PUB_MAX) { publish(&s_view.rmax, &s_view.srcMax, s_S.out.rmax); s_view.ready = 1; }
+            if (p & PUB_MAX) {
+                publish(&s_view.rmax, &s_view.srcMax, s_S.out.rmax);
+                s_view.ready = 1;
+                if (s_S.out.tof > 0.0f) {           /* T21c: Raero = Rmax + (target LOS velocity) x TOF at Rmax */
+                    float l = v3_len(d), vAlong = l > 1.0f ? v3_dot(tv, d) / l : 0.0f;
+                    publish(&s_view.raero, &s_view.srcAero, s_S.out.rmax + vAlong * s_S.out.tof);
+                }
+            }
             if (p & PUB_NE) { publish(&s_view.rne, &s_view.srcNe, s_S.out.rne); s_view.worstEsc = s_S.out.worstEsc; }
             if (p & PUB_MIN) publish(&s_view.rmin, &s_view.srcMin, s_S.out.rmin);
             s_pubTick = s_cycleTick;

@@ -606,9 +606,9 @@ static void trails_tick(const Game *g)
     for (k = 0; k < TRAIL_MAX; k++) s_tr[k].seen = 0;
     for (i = 0; i < n; i++) {
         const MissileView *m = &mv[i];
-        const MissileParams *mp = missile_params_of(m->type);
+        const MissileParams *mp = missile_params_of(m->kind);
         Trail *t = NULL;
-        int burning = mp ? m->age < mp->dropSec + mp->boostSec : m->age < 3.0f;
+        int burning = mp ? m->age < missile_burn_end(mp) : m->age < 3.0f;
         for (k = 0; k < TRAIL_MAX; k++) if (s_tr[k].on && s_tr[k].serial == m->serial) { t = &s_tr[k]; break; }
         if (!t) {
             if (!burning) continue;
@@ -1086,10 +1086,10 @@ static void draw_additive(const Game *g, float alpha)
     qb_mat(&s_mAdd);
     n = weapons_missiles(mv, MAX_MISSILES);         /* motor glows while the motor burns */
     for (i = 0; i < n; i++) {
-        const MissileParams *mp = missile_params_of(mv[i].type);
+        const MissileParams *mp = missile_params_of(mv[i].kind);
         Vec3 p;
         float len = mv[i].type == MSL_SRM ? 2.85f : 3.65f, hs, f;
-        if (mp && (mv[i].age < mp->dropSec || mv[i].age > mp->dropSec + mp->boostSec)) continue;
+        if (mp && (mv[i].age < mp->dropSec || mv[i].age > missile_burn_end(mp))) continue;
         p = v3_madd(v3_lerp(mv[i].prevPos, mv[i].pos, alpha), mv[i].dir, -0.5f * len);
         if (v3_len(v3_sub(p, s_camEye)) > 8000.0f) continue;
         f = fog_fade(p);

@@ -1289,20 +1289,39 @@ static int init_inner(void *hwnd, const RInit *ri, RCaps *caps)
         sd.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN | DDSCAPS_3DDEVICE | DDSCAPS_VIDEOMEMORY;
         CHK(s_dd->CreateSurface(&sd, &s_back, NULL), "CreateSurface back (windowed)");
     }
-    s_haveZ = 0;
-    s_zBitsWant = s_bpp == 32 ? 24 : 16;
-    CHK(s_d3d->EnumZBufferFormats(s_devGuid, zcb, NULL), "EnumZBufferFormats");
-    if (!s_haveZ) { log_printf(LOG_ERR, "err: rend no Z-buffer format"); return 0; }
-    memset(&sd, 0, sizeof(sd));
-    sd.dwSize = sizeof(sd);
-    sd.dwFlags = DDSD_CAPS | DDSD_WIDTH | DDSD_HEIGHT | DDSD_PIXELFORMAT;
-    sd.dwWidth = (DWORD)s_W;
-    sd.dwHeight = (DWORD)s_H;
-    sd.ddsCaps.dwCaps = DDSCAPS_ZBUFFER | DDSCAPS_VIDEOMEMORY;
-    sd.ddpfPixelFormat = s_zfmt;
-    CHK(s_dd->CreateSurface(&sd, &s_zbuf, NULL), "CreateSurface Z");
-    CHK(s_back->AddAttachedSurface(s_zbuf), "AddAttachedSurface Z");
-    CHK(s_d3d->CreateDevice(s_devGuid, s_back, &s_dev, NULL), "CreateDevice");
+    {
+        /* Z-buffer depth: 16 bits is enough with the W-buffer (Voodoo3). Without a W-buffer (e.g. ATI Radeon) a 16-bit
+           Z over a 56 km far plane makes the sea show through distant terrain, so ask for 24 bits there even at 16 bpp
+           and fall back to 16 when the card refuses mixed depths. (1.1: T40 Radeon 9000 fix) */
+        int noW = !(ri->wantWBuffer && (s_hal.dpcTriCaps.dwRasterCaps & D3DPRASTERCAPS_WBUFFER));
+        int tryBits[2], nTry = 0, t, ok = 0;
+        HRESULT hr = DD_OK;
+        if (s_bpp == 32 || noW) tryBits[nTry++] = 24;
+        tryBits[nTry++] = 16;
+        for (t = 0; t < nTry && !ok; t++) {
+            s_haveZ = 0;
+            s_zBitsWant = tryBits[t];
+            CHK(s_d3d->EnumZBufferFormats(s_devGuid, zcb, NULL), "EnumZBufferFormats");
+            if (!s_haveZ) { log_printf(LOG_ERR, "err: rend no Z-buffer format"); return 0; }
+            memset(&sd, 0, sizeof(sd));
+            sd.dwSize = sizeof(sd);
+            sd.dwFlags = DDSD_CAPS | DDSD_WIDTH | DDSD_HEIGHT | DDSD_PIXELFORMAT;
+            sd.dwWidth = (DWORD)s_W;
+            sd.dwHeight = (DWORD)s_H;
+            sd.ddsCaps.dwCaps = DDSCAPS_ZBUFFER | DDSCAPS_VIDEOMEMORY;
+            sd.ddpfPixelFormat = s_zfmt;
+            hr = s_dd->CreateSurface(&sd, &s_zbuf, NULL);
+            if (SUCCEEDED(hr)) hr = s_back->AddAttachedSurface(s_zbuf);
+            if (SUCCEEDED(hr)) hr = s_d3d->CreateDevice(s_devGuid, s_back, &s_dev, NULL);
+            if (SUCCEEDED(hr)) { ok = 1; break; }
+            log_printf(LOG_WARN, "warn: rend zbits=%lu failed hr=0x%08lX %s, trying less", (unsigned long)s_zfmt.dwZBufferBitDepth,
+                       (unsigned long)hr, hrname(hr));
+            if (s_dev) { s_dev->Release(); s_dev = NULL; }
+            if (s_zbuf) { s_back->DeleteAttachedSurface(0, s_zbuf); s_zbuf->Release(); s_zbuf = NULL; }
+        }
+        if (!ok) return fail("CreateDevice with Z-buffer", hr);
+        log_printf(LOG_INFO, "caps: zbuffer chosen bits=%lu want=%d noW=%d", (unsigned long)s_zfmt.dwZBufferBitDepth, s_zBitsWant, noW);
+    }
     CHK(s_d3d->CreateViewport(&s_vp, NULL), "CreateViewport");
     CHK(s_dev->AddViewport(s_vp), "AddViewport");
     memset(&vd, 0, sizeof(vd));
@@ -1340,6 +1359,11 @@ static int init_inner(void *hwnd, const RInit *ri, RCaps *caps)
                   (s_hal.dpcTriCaps.dwDestBlendCaps & D3DPBLENDCAPS_SRCCOLOR) &&
                   (s_hal.dpcTriCaps.dwSrcBlendCaps & D3DPBLENDCAPS_ONE) && (s_hal.dpcTriCaps.dwDestBlendCaps & D3DPBLENDCAPS_ONE);
     s_zmode = (ri->wantWBuffer && s_cp.wbuffer) ? D3DZB_USEW : D3DZB_TRUE;
+    /* 1.1 (T40 Radeon): hardware zBias is only safe with the W-buffer. With a (non-linear) Z-buffer the bias grows with
+       distance, so the far sea drew over the volcano's lower slopes. The 24/32-bit Z chosen there is precise enough for
+       the lifted decals (runway 0.2 m, shadow 0.5 m) without it. -zbias forces it on, -nozbias off. */
+    if (s_zmode != D3DZB_USEW && !arg_has("-zbias")) s_zbiasCap = 0;
+    if (arg_has("-nozbias")) s_zbiasCap = 0;
     s_gbL = s_hal.dvGuardBandLeft; s_gbT = s_hal.dvGuardBandTop;
     s_gbR = s_hal.dvGuardBandRight; s_gbB = s_hal.dvGuardBandBottom;
     if (arg_has("-noguardband")) s_gbL = s_gbT = s_gbR = s_gbB = 0.0f;

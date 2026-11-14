@@ -114,6 +114,8 @@ typedef struct DlzView {
     float closure;                                  /* m/s, + = closing (this frame) */
     float rmax, rne, rmin;                          /* published (smoothed) values, m */
     int srcMax, srcNe, srcMin;                      /* DLZV_LIVE or DLZV_TABLE (estimate until the first live) */
+    float raero;                                    /* T21c: max aerodynamic range (zero-closure; LAR GDD Raero) */
+    int srcAero;                                    /* DLZV_LIVE or DLZV_TABLE */
     int ready;                                      /* 1 = Rmax is live (SHOOT allowed: 10.6 "first result") */
     int inRmax, inRne, inRmin;                      /* rmin < range <= rmax / range <= rne / range < rmin */
     int nowValid, nowHit;                           /* NOW fly-out: a shot at the current range hits (straight) */

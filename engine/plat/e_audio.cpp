@@ -13,6 +13,7 @@
 #include "e_log.h"
 #include "e_file.h"
 #include "e_plat.h"
+#include "e_cfg.h"
 
 typedef HRESULT (WINAPI *DSCreateFn)(LPGUID, LPDIRECTSOUND *, LPUNKNOWN);
 
@@ -40,6 +41,7 @@ typedef struct Voice {
 static HMODULE        s_dll;
 static LPDIRECTSOUND  s_ds;
 static LPDIRECTSOUNDBUFFER s_primary;
+static int s_repanAfterFreq = 1;                  /* -norepan turns it off */
 static int            s_ok;
 static int            s_globalFocus;
 static Sound          s_snd[AU_MAX_SOUNDS];
@@ -258,6 +260,7 @@ int au_init(void *hwnd, int rate)
         au_shutdown();
         return 0;
     }
+    s_repanAfterFreq = !arg_has("-norepan");
     hr = s_ds->SetCooperativeLevel((HWND)hwnd, DSSCL_PRIORITY);
     if (hr != DS_OK) {
         coop = DSSCL_NORMAL;
@@ -530,6 +533,12 @@ void au_update(void)
             v->buf->SetFrequency(f);
             v->curFreq = f;
             calls++;
+            if (s_repanAfterFreq) {                    /* 1.1: some drivers (T40 SoundMAX) lose the pan of a mono
+                                                          buffer on SetFrequency: the engine loops played left only */
+                v->buf->SetPan(pan_to_ds(v->pan));
+                v->curPanF = v->pan;
+                calls++;
+            }
         }
     }
     s_masterDirty = 0;

@@ -2202,7 +2202,7 @@ RB_PREMUL (ONE, INVSRCALPHA), confirmed by T02 on the Voodoo3.
   (fx 2.5 ms). clang -fsyntax-only -Wall clean on fx/camera/scene (scene with a stub windows.h).
 - **Open / for others**: (1) T19/main: `-camat` runs with `-script` did not crash the jet with a held DOWN key
   (no CRASH event; the same script without -camat crashes at 50 s) - camat seems to drop the pilot keys; only matters
-  for screenshots. (2) During T22 the T40 (192.168.1.153) had `jet.exe` open over the share for a while (link
+  for screenshots. (2) During T22 the T40 laptop had `jet.exe` open over the share for a while (link
   LNK1104); I linked a temporary jet22.exe from a throw-away makefile and deleted both afterwards. (3) Puff count is
   still the combat-fx driver: damaged smoke (30 puffs/s) + 6 burning wrecks x ~30 puffs saturate Low's 128; if T23
   wants more fx headroom on the VM, halve the damaged-smoke rate with bigger puffs. (4) A11 added its `scatter_draw(c)` line
@@ -2275,3 +2275,50 @@ RB_PREMUL (ONE, INVSRCALPHA), confirmed by T02 on the Voodoo3.
   still says "JET M2 COMBAT" but is no longer called by main. (4) Results show the frozen flight from the camera the
   player had (chase or cockpit; no HUD). (5) Resolution list = 4:3 16-bit modes >= 800x600 only (the HUD layout is
   4:3); the 86Box Voodoo3 lists 9 (800x600 .. 1920x1440).
+
+## T21d NIRD gauge tests + gauge fixes + dlz live refresh (2026-11-14)
+- **`-hudtest zone` now checks the T21c NIRD** (src/hud_wpn.cpp). The spec is written separately from the drawing
+  code (`nird_exp`, `ase_exp`). New part `test_nird` (cockpit with a head-on-like Raero, chase with a tail-like Raero)
+  runs a whole approach with the player LRM numbers (Rmax 40.4 / Rne 13.5 / Rmin 0.95 km), from 2.3x Rmax down to
+  0.5x Rmin. At every frame it checks: caret = spec (max error 0.000 deg). The caret never rises and moves at most
+  0.39 deg per frame, without jumping at Rmax (180.09 -> 179.99). It is pinned at 355 beyond 2x Rmax (2 % release
+  hysteresis) and flashes there (drawn 268 of 540 frames); it is always drawn when not pinned. Ticks: Rmax 180,
+  Rmin 75, Rne between them, Raero where the spec puts it. Steering dot on the dynamic edge (0.00 px). "IN LAR" is
+  never shown outside Rmin < R <= Rmax, comes on 0.48 s after Rmax and changes exactly twice. Plus a no-Rne case.
+  Updated parts: geometry (sweep to 2.3x Rmax: pin seen; dot clamp), the steering dot in both views (25 cases =
+  5 directions x 5 ranges with the dynamic edge), and chase long range (6 cases for Rmax 39 / 70 / 40.4 km: caret,
+  pin + flashing, tick angles, reach). Also: IN LAR + caret-monotonic checks in the approach tests, IN LAR flicker
+  checks in the hover tests, IN LAR placement checks (cockpit: circle reach, all 3 LOCK slots, readouts, weapon line,
+  bank pointer at every bank -47..47; chase: inside the readout keep-out, right of the circle), and an expected IN LAR
+  state in every shot scene. `SynZone.raeroT` publishes a Raero. New shot scene `lar_edge` (10.3 NM, just inside
+  Rmax), added at the end of `s_cases` so test_cost's indices stay the same.
+- **Real bugs fixed in the T21c gauge code**:
+  1. `nird_ang` went up to 360 deg (12:00) just inside 2x Rmax, then jumped back to 355 when the pin engaged. 12:00 is
+     also the R = 0 position. Out-of-range is now clamped at 355 (the pin angle); a 0/0 guard was added for Rmax = Rmin.
+  2. "IN LAR" overlaps: the cockpit text at y 334 touched or overlapped the bank pointer (at banks 0-10 deg). It is
+     now at `LAR_Y_CP` 330.5: 3 px from LOCK's home and 3.4 px from the pointer at 800x600 (4 / 3.5 px at 1024x768).
+     The chase text at y 132 sat on the circle's top (the ring at the FOV-40 clamp, the aspect pointer in a tail
+     chase); it is now the 4th readout row (left at x 396, under TOF/ACT/TTG), inside the chase readout keep-out rect.
+  3. Ladder keep-out overflow (T18): the cockpit IN LAR rect was the 3rd fixed rect, which pushed LOCK out of the
+     4-slot `hudwpn_keepout` list whenever MISSILE + LOCK were up. IN LAR now goes after MISSILE / LOCK (the threat
+     arrows still see all rects; the chase IN LAR is inside the readout rect).
+  4. "IN LAR" had no hysteresis (raw `inRmax`): it could flicker on a noisy boundary. It now uses SHOOT's entry rule
+     (held `wpnShootOnSec` + one live publication) and still leaves at once, so it is never shown outside the LAR.
+  5. Dynamic ASE without an Rne (no no-escape zone) stayed wide (aseDeg) all the way out to Rmax. It now widens towards
+     Rmin (`ase_deg`). There was no division by zero.
+  Not changed: when Raero = Rmax (beam aspect) the Raero tick lies under the longer Rmax tick (same value, nothing
+  wrong is shown). The Raero tick (0.45 aseOuter, 0.6 profile) looks like the aspect pointer (0.55, 0.6); the
+  `raero` diamond sprite in the atlas is unused (user's call).
+- **dlz live refresh** (src/dlz.cpp): new `[dlz] coastFarM` 6000 (0 = off). Live and sync fly-outs against a
+  straight target step 2 x dt after the motor burn while the target is farther than 6 km (one step's cost). Escape
+  fly-outs (Rne / checks) and the AI tables are untouched, so Rne is bit-identical, the table key and data/dlz.tab are
+  unchanged, and Rmax moves <= 0.5 % with no bias. Cycle 6800 -> 5560 steps (Mac). VM live_refresh 1.33 -> **1.14 s at
+  30 fps**. Gate 1.2 -> 1.4 s in tests_dlz.cpp, with a comment (user accepts 15 fps on the VM; T40 ~0.2 s).
+  `simh shots 500`: all "inside Rne" rows 100 % (player defence+flares 18/19 as before). **jet.ini needs `-dumpini`**
+  for the new key (the default works without it).
+- **Verified (VM A)**: VC6 /W3 0 warnings. `-fullscreen -res 800 600` and `-res 1024 768`: `-hudtest zone`, `layout` and
+  `contacts` all rc=0 (zone failures=0). `-test all` rc=0. Mac: `make -C tools/simh` clean, `simh test all` rc=0.
+  Screenshots: shots/nird_cockpit_rmax.png (just inside Rmax), nird_cockpit_rne_rmax.png (between Rne and Rmax),
+  nird_cockpit_inside_rne.png, nird_cockpit_out_of_range.png, nird_chase_rmax.png.
+- **Docs to update (not this task's files)**: DESIGN 10.6 "IN LAR below the circle" -> chase = 4th readout row;
+  HUD_LAYOUT.md weapon table (IN LAR positions, NIRD instead of the range scale); DESIGN 12.4 mentions `coastFarM`.
