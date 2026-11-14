@@ -14,6 +14,17 @@ flashes, the target cannot escape, unless it hides behind the volcano.
 - Training (drones) and a 3-wave Sortie with score and records
 - Menus with key rebinding, video and sound options; Setup98 installer
 
+![Title screen](docs/img/title.jpg)
+
+| | |
+|---|---|
+| ![Cockpit view: F/A-18C-style HUD with launch zone, SHOOT and missile warning](docs/img/cockpit_hud.jpg) | ![Chase view: weapon HUD and wingtip vapour in a 9 g turn](docs/img/chase_vapour.jpg) |
+| Cockpit view: launch-zone circle, SHOOT, ACT/TTG readouts, threat arrows | Chase view: full weapon HUD, wingtip vapour at 9 g |
+| ![Chase view in combat with a locked target](docs/img/chase_combat.jpg) | ![The airbase on the west cape](docs/img/base.jpg) |
+| Locked target, MISSILE and LOCK warnings | The airbase on the island's west cape |
+| ![The volcanic island from 40 km out](docs/img/island_t40.jpg) | ![Mission results](docs/img/results.jpg) |
+| The island from 40 km, ThinkPad T40 at 1400x1050 | Sortie results with score and records |
+
 ## Requirements
 
 Windows 98 (SE), DirectX 6.1 or later, a 3D card (3dfx Voodoo3 class or better), 800x600 or higher. Developed on an
